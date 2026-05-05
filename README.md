@@ -1,6 +1,6 @@
 # ddot.it — IntelliJ IDEA support
 
-Authoring support for **ddot.it**, a minimal text format for typed knowledge graphs. Each line is a triple — `subject ..predicate.. object` — written with double-dot separators.
+Authoring support for **[ddot.it](https://ddot.it)**, a minimal text format for typed knowledge graphs. Each line is a triple — `subject ..predicate.. object` — written with double-dot separators.
 
 ## Facts
 License: MIT
