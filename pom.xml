@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.calpano.ddot</groupId>
+    <artifactId>ddot.it-intellij</artifactId>
+    <version>0.0.6</version>
+    <packaging>jar</packaging>
+
+    <name>ddot.it IntelliJ Plugin</name>
+    <description>Authoring support for ddot.it — a minimal notation for knowledge graphs.</description>
+
+    <!--
+        BUILD MODEL.
+        JetBrains only publishes the IDE as a zip artifact (no individual platform jars
+        on Maven Central / JetBrains-releases). We download that zip with the
+        maven-dependency-plugin, unpack its top-level jars into target/idea-lib, and
+        feed them to javac via the compiler plugin's compilerArgs (-classpath override).
+        First build downloads ~1.5 GB; subsequent builds are cached in ~/.m2.
+    -->
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.release>17</maven.compiler.release>
+
+        <!-- IntelliJ IDEA Community baseline. Update to retarget. -->
+        <intellij.version>2024.2</intellij.version>
+        <idea.lib.dir>${project.build.directory}/idea-lib</idea.lib.dir>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>jetbrains-intellij-releases</id>
+            <name>JetBrains IntelliJ Releases</name>
+            <url>https://www.jetbrains.com/intellij-repository/releases</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}-${project.version}</finalName>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.7.0</version>
+                <executions>
+                    <execution>
+                        <id>unpack-idea</id>
+                        <phase>initialize</phase>
+                        <goals><goal>unpack</goal></goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.jetbrains.intellij.idea</groupId>
+                                    <artifactId>ideaIC</artifactId>
+                                    <version>${intellij.version}</version>
+                                    <type>zip</type>
+                                    <outputDirectory>${idea.lib.dir}</outputDirectory>
+                                    <!--
+                                        The ideaIC zip is rooted directly at lib/
+                                        (no version-wrapper directory), so the glob is
+                                        lib/*.jar — NOT **/lib/*.jar. Avoid the broader
+                                        glob: it also grabs plugin libs like
+                                        plugins/Groovy/lib/Groovy.jar, which collides
+                                        case-insensitively with the top-level
+                                        lib/groovy.jar on macOS APFS.
+                                    -->
+                                    <includes>lib/*.jar,lib/modules/*.jar</includes>
+                                    <fileMappers>
+                                        <org.codehaus.plexus.components.io.filemappers.FlattenFileMapper/>
+                                    </fileMappers>
+                                </artifactItem>
+                            </artifactItems>
+                            <overWriteSnapshots>false</overWriteSnapshots>
+                            <overWriteReleases>false</overWriteReleases>
+                            <overWriteIfNewer>false</overWriteIfNewer>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+                After unpack, build a classpath property listing every jar in idea-lib
+                explicitly. We can't use javac's "dir/*" wildcard because Maven feeds
+                the compiler via @argfile, where wildcards don't expand.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>build-idea-classpath</id>
+                        <phase>generate-resources</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <exportAntProperties>true</exportAntProperties>
+                            <target>
+                                <!--
+                                    Exclude Kotlin's bundled compiler jar (and similar
+                                    *-compiler*.jar artifacts): they ship shadowed copies
+                                    of platform classes (e.g. an older 1-arg-only
+                                    TextAttributesKey) that win the alphabetical classpath
+                                    race and break compilation.
+                                -->
+                                <fileset id="idea.cp.fs" dir="${idea.lib.dir}">
+                                    <include name="*.jar"/>
+                                    <!--
+                                        kotlin-compiler*.jar / *-compiler*.jar ship
+                                        shadowed copies of platform classes that win the
+                                        alphabetical classpath race.
+                                    -->
+                                    <exclude name="kotlin-compiler*.jar"/>
+                                    <exclude name="*-compiler.jar"/>
+                                    <exclude name="*-compiler-*.jar"/>
+                                    <exclude name="kotlinc.*.jar"/>
+                                    <!--
+                                        annotations-13.0.jar ships a pre-TYPE_USE @NotNull
+                                        and would shadow the modern annotations.jar.
+                                    -->
+                                    <exclude name="annotations-*.jar"/>
+                                </fileset>
+                                <pathconvert refid="idea.cp.fs" property="idea.classpath" pathsep=":"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>${java.version}</release>
+                    <!--
+                        compilerArgs append after Maven's own -classpath; javac uses
+                        the last -classpath wins, so this replaces the compile classpath
+                        with the unpacked IDEA jars enumerated by the antrun step above.
+                    -->
+                    <compilerArgs>
+                        <arg>-classpath</arg>
+                        <arg>${idea.classpath}</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.0</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.7.1</version>
+                <configuration>
+                    <descriptors>
+                        <descriptor>src/assembly/plugin-zip.xml</descriptor>
+                    </descriptors>
+                    <appendAssemblyId>false</appendAssemblyId>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>plugin-zip</id>
+                        <phase>package</phase>
+                        <goals><goal>single</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

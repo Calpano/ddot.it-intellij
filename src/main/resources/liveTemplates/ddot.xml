@@ -1,0 +1,60 @@
+<templateSet group="ddot.it">
+    <template name="ddot-typed"
+              value="$SUBJECT$ ..$TYPE$.. $OBJECT$"
+              description="Create a typed link: subject .. type .. object"
+              toReformat="false"
+              toShortenFQNames="false">
+        <variable name="SUBJECT" expression="" defaultValue="&quot;subject&quot;" alwaysStopAt="true"/>
+        <variable name="TYPE" expression="" defaultValue="&quot;type&quot;" alwaysStopAt="true"/>
+        <variable name="OBJECT" expression="" defaultValue="&quot;object&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="DDOT" value="true"/>
+        </context>
+    </template>
+    <template name="ddot-link"
+              value="$SUBJECT$ .... $OBJECT$"
+              description="Create a simple link: subject .... object"
+              toReformat="false"
+              toShortenFQNames="false">
+        <variable name="SUBJECT" expression="" defaultValue="&quot;subject&quot;" alwaysStopAt="true"/>
+        <variable name="OBJECT" expression="" defaultValue="&quot;object&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="DDOT" value="true"/>
+        </context>
+    </template>
+    <template name="ddot-property"
+              value="$SUBJECT$ ..$PROPERTY$.. $VALUE$ ,, $METADATA$"
+              description="Create a property with metadata: subject .. property .. value ,, metadata"
+              toReformat="false"
+              toShortenFQNames="false">
+        <variable name="SUBJECT" expression="" defaultValue="&quot;subject&quot;" alwaysStopAt="true"/>
+        <variable name="PROPERTY" expression="" defaultValue="&quot;property&quot;" alwaysStopAt="true"/>
+        <variable name="VALUE" expression="" defaultValue="&quot;value&quot;" alwaysStopAt="true"/>
+        <variable name="METADATA" expression="" defaultValue="&quot;metadata&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="DDOT" value="true"/>
+        </context>
+    </template>
+    <template name="ddot-continue"
+              value="..$PROPERTY$.. $VALUE$"
+              description="Continue with another property on the same subject"
+              toReformat="false"
+              toShortenFQNames="false">
+        <variable name="PROPERTY" expression="" defaultValue="&quot;property&quot;" alwaysStopAt="true"/>
+        <variable name="VALUE" expression="" defaultValue="&quot;value&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="DDOT" value="true"/>
+        </context>
+    </template>
+    <template name="ddot-meta"
+              value=",, $KEY$ :: $VALUE$"
+              description="Add metadata to a triple"
+              toReformat="false"
+              toShortenFQNames="false">
+        <variable name="KEY" expression="" defaultValue="&quot;key&quot;" alwaysStopAt="true"/>
+        <variable name="VALUE" expression="" defaultValue="&quot;value&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="DDOT" value="true"/>
+        </context>
+    </template>
+</templateSet>

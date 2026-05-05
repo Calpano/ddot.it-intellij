@@ -1,0 +1,150 @@
+<idea-plugin>
+    <!-- ============================================================
+         Identity. <id> is permanent — Marketplace uses it as the URL
+         slug and the install key; never rename. <name> is the display
+         string shown in the IDE plugin list AND the "plugins suggested
+         for this file type" balloon when an unknown .ddot file opens.
+         ============================================================ -->
+    <id>com.calpano.ddot</id>
+    <name>ddot.it - Knowledge Graph Notation</name>
+    <version>0.0.6</version>
+    <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
+
+    <!-- IDE compatibility range. Matches pom.xml `intellij.version=2024.2`.
+         Update on retarget; otherwise users on newer IDEs get an "incompatible"
+         banner instead of a broken install. -->
+    <idea-version since-build="242" until-build="261.*"/>
+
+    <description><![CDATA[
+        <p>Authoring support for <a href="https://ddot.it">ddot.it</a>, a minimal text format
+        for typed knowledge graphs. Each line is a triple —
+        <code>subject ..predicate.. object</code> — written with double-dot separators.</p>
+        <ul>
+            <li>Syntax highlighting for <code>.ddot</code> files.</li>
+            <li>Smart, slot-aware completion (subject / predicate / object) with auto-popup
+                on continuation lines.</li>
+            <li>Code folding per subject scope</li>
+            <li>Structure view for subjects.</li>
+            <li>Canonical formatter — <code>Reformat Code</code> (⌘⌥L) normalizes spacing.</li>
+            <li>Rename refactoring (Shift+F6) renames every occurrence in the file.</li>
+            <li>Find Usages (Alt+F7) on any entity.</li>
+            <li>Live templates: <code>ddot-typed</code>, <code>ddot-link</code>,
+                <code>ddot-property</code>, <code>ddot-continue</code>, <code>ddot-meta</code>.</li>
+            <li>Tools menu: <i>Format Document</i>, <i>Export as JSON</i> — emits JSONL
+                events matching the
+                <a href="https://ddot.it/developer-guide.html#events">ddot.it event spec</a>
+                next to the source file.</li>
+        </ul>
+    ]]></description>
+
+    <change-notes><![CDATA[
+        <h3>0.0.6 — initial Marketplace release</h3>
+        <ul>
+            <li>Real PSI, formatter, folding, structure view, completion, JSONL export.</li>
+            <li>Rename refactoring: Shift+F6 on an entity renames every
+                occurrence in the file.</li>
+            <li>Auto-popup of continuation predicates after pressing Enter
+                on a complete triple.</li>
+        </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- ============================================================
+         Language registration. The `extensions="ddot"` attribute is what
+         makes Marketplace's "plugin suggested for this file type" balloon
+         fire when a user opens a .ddot file with no plugin installed.
+         ============================================================ -->
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType
+                name="ddot.it"
+                implementationClass="com.calpano.ddot.DdotFileType"
+                fieldName="INSTANCE"
+                language="ddot.it"
+                extensions="ddot"/>
+
+        <lang.parserDefinition
+                language="ddot.it"
+                implementationClass="com.calpano.ddot.parser.DdotParserDefinition"/>
+
+        <lang.syntaxHighlighterFactory
+                language="ddot.it"
+                implementationClass="com.calpano.ddot.highlighting.DdotSyntaxHighlighterFactory"/>
+
+        <colorSettingsPage
+                implementation="com.calpano.ddot.highlighting.DdotColorSettingsPage"/>
+
+        <!-- Positional syntax highlighting (subject/predicate/object/meta/command). -->
+        <annotator
+                language="ddot.it"
+                implementationClass="com.calpano.ddot.highlighting.DdotHighlightAnnotator"/>
+
+        <lang.foldingBuilder
+                language="ddot.it"
+                implementationClass="com.calpano.ddot.folding.DdotFoldingBuilder"/>
+
+        <lang.psiStructureViewFactory
+                language="ddot.it"
+                implementationClass="com.calpano.ddot.structure.DdotStructureViewFactory"/>
+
+        <completion.contributor
+                language="ddot.it"
+                implementationClass="com.calpano.ddot.completion.DdotCompletionContributor"/>
+
+        <formattingService
+                implementation="com.calpano.ddot.formatter.DdotFormattingService"/>
+
+        <lang.documentationProvider
+                language="ddot.it"
+                implementationClass="com.calpano.ddot.documentation.DdotDocumentationProvider"/>
+
+        <!-- Live templates contributed under the DDOT context (file type ddot.it). -->
+        <defaultLiveTemplates file="/liveTemplates/ddot.xml"/>
+        <liveTemplateContext
+                contextId="DDOT"
+                implementation="com.calpano.ddot.DdotTemplateContextType"/>
+
+        <!-- Rename + Find Usages plumbing. -->
+        <lang.elementManipulator
+                forClass="com.calpano.ddot.psi.DdotEntity"
+                implementationClass="com.calpano.ddot.psi.DdotEntityManipulator"/>
+
+        <renamePsiElementProcessor
+                implementation="com.calpano.ddot.refactoring.DdotEntityRenameProcessor"/>
+
+        <lang.findUsagesProvider
+                language="ddot.it"
+                implementationClass="com.calpano.ddot.refactoring.DdotFindUsagesProvider"/>
+    </extensions>
+
+    <!-- ============================================================
+         Auto-popup completion: a document edit that inserts a newline
+         arms a flag; the next caret-change schedules an autopopup if the
+         cursor is on a fresh continuation line. Listener is attached
+         only to ddot.it editors, freed on editor release.
+         ============================================================ -->
+    <applicationListeners>
+        <listener
+                class="com.calpano.ddot.completion.DdotAutoPopupRegistrar"
+                topic="com.intellij.openapi.editor.event.EditorFactoryListener"/>
+    </applicationListeners>
+
+    <!-- ============================================================
+         Tools menu group. (No Validate action — ddot.it cannot be invalid.)
+         ============================================================ -->
+    <actions>
+        <group id="DdotActions" text="ddot.it" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action
+                    id="Ddot.Format"
+                    class="com.calpano.ddot.actions.FormatAction"
+                    text="Format Document"
+                    description="Format the current ddot.it document"/>
+            <action
+                    id="Ddot.ExportJson"
+                    class="com.calpano.ddot.actions.ExportJsonAction"
+                    text="Export as JSON"
+                    description="Export the current ddot.it document as JSONL events to a file next to the source"/>
+        </group>
+    </actions>
+</idea-plugin>
