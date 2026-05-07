@@ -2,6 +2,7 @@ package com.calpano.ddot.completion;
 
 import com.calpano.ddot.DdotFileType;
 import com.intellij.codeInsight.AutoPopupController;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.event.CaretEvent;
@@ -12,6 +13,7 @@ import com.intellij.openapi.editor.event.EditorFactoryEvent;
 import com.intellij.openapi.editor.event.EditorFactoryListener;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
@@ -27,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class DdotAutoPopupRegistrar implements EditorFactoryListener {
 
-    private final Map<Editor, Handler> handlers = new ConcurrentHashMap<>();
+    private final Map<Editor, Disposable> disposables = new ConcurrentHashMap<>();
 
     @Override
     public void editorCreated(@NotNull EditorFactoryEvent event) {
@@ -35,19 +37,17 @@ public final class DdotAutoPopupRegistrar implements EditorFactoryListener {
         VirtualFile vf = FileDocumentManager.getInstance().getFile(editor.getDocument());
         if (vf == null || vf.getFileType() != DdotFileType.INSTANCE) return;
 
+        Disposable disposable = Disposer.newDisposable("DdotAutoPopupRegistrar");
+        disposables.put(editor, disposable);
         Handler handler = new Handler(editor);
-        handlers.put(editor, handler);
-        editor.getDocument().addDocumentListener(handler);
-        editor.getCaretModel().addCaretListener(handler);
+        editor.getDocument().addDocumentListener(handler, disposable);
+        editor.getCaretModel().addCaretListener(handler, disposable);
     }
 
     @Override
     public void editorReleased(@NotNull EditorFactoryEvent event) {
-        Handler handler = handlers.remove(event.getEditor());
-        if (handler != null) {
-            event.getEditor().getDocument().removeDocumentListener(handler);
-            event.getEditor().getCaretModel().removeCaretListener(handler);
-        }
+        Disposable disposable = disposables.remove(event.getEditor());
+        if (disposable != null) Disposer.dispose(disposable);
     }
 
     private static final class Handler implements DocumentListener, CaretListener {
