@@ -1,6 +1,7 @@
 package com.calpano.ddot.actions;
 
 import com.calpano.ddot.psi.DdotFile;
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -27,6 +28,17 @@ final class DdotActionUtil {
     static void enableForDdotFile(AnActionEvent e) {
         e.getPresentation().setEnabledAndVisible(activeDdotFile(e) != null
                 || e.getData(CommonDataKeys.PSI_FILE) instanceof DdotFile);
+    }
+
+    /**
+     * True when the file is a real, on-disk ddot file — not a fragment injected
+     * into Markdown or AsciiDoc. Injected fragments have no companion location
+     * to write a sibling .jsonl next to.
+     */
+    static boolean isStandaloneDdotFile(@Nullable PsiFile file) {
+        if (!(file instanceof DdotFile df)) return false;
+        Project project = df.getProject();
+        return !InjectedLanguageManager.getInstance(project).isInjectedFragment(df);
     }
 
     static ActionUpdateThread updateThread() {

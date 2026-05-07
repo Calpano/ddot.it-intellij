@@ -7,7 +7,7 @@
 
     <groupId>com.calpano.ddot</groupId>
     <artifactId>ddot.it-intellij</artifactId>
-    <version>0.0.8</version>
+    <version>0.0.9</version>
     <packaging>jar</packaging>
 
     <name>ddot.it IntelliJ Plugin</name>
@@ -85,7 +85,15 @@
                                         case-insensitively with the top-level
                                         lib/groovy.jar on macOS APFS.
                                     -->
-                                    <includes>lib/*.jar,lib/modules/*.jar</includes>
+                                    <!--
+                                        Bundled-plugin jars we need on the compile classpath:
+                                        - plugins/markdown/lib/markdown.jar
+                                          for org.intellij.plugins.markdown.injection.CodeFenceLanguageProvider,
+                                          which the Markdown plugin's CodeFenceInjector consults to map
+                                          fence info strings (`ddot`, `ddot.it`, `ddotit`) to DdotLanguage.
+                                          Compile-time only; the runtime jar comes from the user's IDE.
+                                    -->
+                                    <includes>lib/*.jar,lib/modules/*.jar,plugins/markdown/lib/markdown.jar</includes>
                                     <fileMappers>
                                         <org.codehaus.plexus.components.io.filemappers.FlattenFileMapper/>
                                     </fileMappers>

@@ -7,7 +7,7 @@
          ============================================================ -->
     <id>com.calpano.ddot</id>
     <name>ddot.it</name>
-    <version>0.0.8</version>
+    <version>0.0.9</version>
     <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
 
     <!-- IDE compatibility range. Matches pom.xml `intellij.version=2024.2`.
@@ -38,6 +38,15 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.0.9</h3>
+        <ul>
+            <li>Embed ddot.it inside Markdown fenced code blocks
+                (<code>```ddot</code>, <code>```ddot.it</code>, <code>```ddotit</code>)
+                and AsciiDoc listing blocks
+                (<code>[source,ddot]</code>, <code>[ddot.it]</code>, …).
+                Highlighting, completion, formatting, rename and find-usages
+                all work inside the embedded fragment.</li>
+        </ul>
         <h3>0.0.8</h3>
         <ul>
             <li>Minor change in logging.</li>
@@ -59,6 +68,17 @@
     ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
+
+    <!-- ============================================================
+         Optional integrations — load only when the host plugin is
+         installed. Each config-file registers an extension that lets
+         users embed ddot.it inside that host's code blocks: a Markdown
+         fenced block opened with three backticks and "ddot", or an
+         AsciiDoc listing block introduced by [source,ddot] and a row
+         of dashes.
+         ============================================================ -->
+    <depends optional="true" config-file="ddot-markdown.xml">org.intellij.plugins.markdown</depends>
+    <depends optional="true" config-file="ddot-asciidoc.xml">org.asciidoctor.intellij.asciidoc</depends>
 
     <!-- ============================================================
          Language registration. The `extensions="ddot"` attribute is what

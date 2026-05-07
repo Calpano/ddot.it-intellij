@@ -1,0 +1,27 @@
+= Embedded ddot.it in AsciiDoc
+
+ddot.it triples can be authored inline. The plugin recognises the labels
+`ddot`, `ddot.it`, and `ddotit` on listing blocks.
+
+[source,ddot]
+----
+Project Eagle ..started in.. 2024
+John Doe ..leads.. Project Eagle ,, ..since.. 2025
+----
+
+[source,ddot.it]
+----
+Untyped link
+Project Eagle .... Moonshot
+..knows.. Dirk
+..knows.. Moonshot
+
+----
+
+[ddotit]
+----
+Dirk Hagemann ..works at.. SAP ,,
+..year.. 2010
+..fictive.. yes
+,,
+----

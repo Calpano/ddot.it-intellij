@@ -1,0 +1,15 @@
+<idea-plugin>
+    <!--
+        Loaded only when the AsciiDoc plugin (org.asciidoctor.intellij.asciidoc,
+        https://plugins.jetbrains.com/plugin/7391-asciidoc) is installed.
+        Registers a MultiHostInjector that recognises ddot labels on listing
+        blocks (`[source,ddot]` / `[ddot]`, plus `ddot.it` / `ddotit`) and
+        injects DdotLanguage over the block body. The injector matches the host
+        PSI by class-name string so we don't need the asciidoc plugin's jars on
+        our compile classpath.
+    -->
+    <extensions defaultExtensionNs="com.intellij">
+        <multiHostInjector
+                implementation="com.calpano.ddot.injection.DdotAsciiDocInjector"/>
+    </extensions>
+</idea-plugin>

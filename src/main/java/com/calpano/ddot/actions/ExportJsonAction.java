@@ -27,7 +27,8 @@ public final class ExportJsonAction extends AnAction {
 
     @Override
     public void update(@NotNull AnActionEvent e) {
-        DdotActionUtil.enableForDdotFile(e);
+        DdotFile file = DdotActionUtil.activeDdotFile(e);
+        e.getPresentation().setEnabledAndVisible(DdotActionUtil.isStandaloneDdotFile(file));
     }
 
     @Override
