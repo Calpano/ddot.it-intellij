@@ -108,69 +108,21 @@
             </plugin>
 
             <!--
-                After unpack, build a classpath property listing every jar in idea-lib
-                explicitly. We can't use javac's "dir/*" wildcard because Maven feeds
-                the compiler via @argfile, where wildcards don't expand.
+                The antrun-driven classpath build and the compilerArgs `-classpath`
+                override live in the `cli-build` profile (activated when running
+                outside IntelliJ). IntelliJ's JPS replays maven-compiler-plugin's
+                compilerArgs verbatim but never runs the `generate-resources` phase
+                that sets `${idea.classpath}` — leaving an unresolved arg that
+                makes javac fail with "invalid flag: UTF-8". Keeping the override
+                CLI-only lets JPS rely on the system-scoped jars from the
+                `idea-platform-deps` profile instead.
             -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <id>build-idea-classpath</id>
-                        <phase>generate-resources</phase>
-                        <goals><goal>run</goal></goals>
-                        <configuration>
-                            <exportAntProperties>true</exportAntProperties>
-                            <target>
-                                <!--
-                                    Exclude Kotlin's bundled compiler jar (and similar
-                                    *-compiler*.jar artifacts): they ship shadowed copies
-                                    of platform classes (e.g. an older 1-arg-only
-                                    TextAttributesKey) that win the alphabetical classpath
-                                    race and break compilation.
-                                -->
-                                <fileset id="idea.cp.fs" dir="${idea.lib.dir}">
-                                    <include name="*.jar"/>
-                                    <!--
-                                        kotlin-compiler*.jar / *-compiler*.jar ship
-                                        shadowed copies of platform classes that win the
-                                        alphabetical classpath race.
-                                    -->
-                                    <exclude name="kotlin-compiler*.jar"/>
-                                    <exclude name="*-compiler.jar"/>
-                                    <exclude name="*-compiler-*.jar"/>
-                                    <exclude name="kotlinc.*.jar"/>
-                                    <!--
-                                        annotations-13.0.jar ships a pre-TYPE_USE @NotNull
-                                        and would shadow the modern annotations.jar.
-                                    -->
-                                    <exclude name="annotations-*.jar"/>
-                                </fileset>
-                                <pathconvert refid="idea.cp.fs" property="idea.classpath" pathsep=":"/>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
                     <release>${java.version}</release>
-                    <!--
-                        compilerArgs append after Maven's own -classpath; javac uses
-                        the last -classpath wins, so this replaces the compile classpath
-                        with the unpacked IDEA jars enumerated by the antrun step above.
-                    -->
-                    <compilerArgs>
-                        <arg>-classpath</arg>
-                        <!--suppress UnresolvedMavenProperty -->
-                        <arg>${idea.classpath}</arg>
-                    </compilerArgs>
                 </configuration>
             </plugin>
 
@@ -203,13 +155,88 @@
 
     <profiles>
         <!--
-            Expose the unpacked IntelliJ jars as system-scope dependencies so the
-            IDE's resolver can index platform classes. Auto-activates once
+            CLI compile path. Active when *not* running under IntelliJ
+            (IntelliJ sets `-Didea.active=true` for both embedded-Maven runs and
+            project imports). Builds an explicit classpath of unpacked IDEA jars
+            via antrun and feeds it to javac through `-classpath`. This bypass
+            exists because Maven feeds the compiler via @argfile, where the
+            `dir/*` wildcard doesn't expand.
+
+            IntelliJ does NOT need this: JPS resolves the IDE jars through the
+            system-scoped dependencies declared in `idea-platform-deps`.
+            Replaying the `-classpath` override under JPS would erase those jars
+            (last `-classpath` wins) and additionally fail at IntelliJ build
+            time because `${idea.classpath}` is unresolved (the `generate-resources`
+            phase never ran), making javac mis-parse the next token as a flag —
+            "invalid flag: UTF-8" in practice.
+        -->
+        <profile>
+            <id>cli-build</id>
+            <activation>
+                <property>
+                    <name>!idea.active</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>build-idea-classpath</id>
+                                <phase>generate-resources</phase>
+                                <goals><goal>run</goal></goals>
+                                <configuration>
+                                    <exportAntProperties>true</exportAntProperties>
+                                    <target>
+                                        <fileset id="idea.cp.fs" dir="${idea.lib.dir}">
+                                            <include name="*.jar"/>
+                                            <!--
+                                                kotlin-compiler*.jar / *-compiler*.jar ship
+                                                shadowed copies of platform classes that win
+                                                the alphabetical classpath race.
+                                            -->
+                                            <exclude name="kotlin-compiler*.jar"/>
+                                            <exclude name="*-compiler.jar"/>
+                                            <exclude name="*-compiler-*.jar"/>
+                                            <exclude name="kotlinc.*.jar"/>
+                                            <!--
+                                                annotations-13.0.jar ships a pre-TYPE_USE
+                                                @NotNull and would shadow modern annotations.jar.
+                                            -->
+                                            <exclude name="annotations-*.jar"/>
+                                        </fileset>
+                                        <pathconvert refid="idea.cp.fs" property="idea.classpath" pathsep=":"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.13.0</version>
+                        <configuration>
+                            <compilerArgs>
+                                <arg>-classpath</arg>
+                                <!--suppress UnresolvedMavenProperty -->
+                                <arg>${idea.classpath}</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+            Expose the unpacked IntelliJ jars as system-scope dependencies so
+            both IntelliJ's resolver (for indexing) and JPS (for IDE-internal
+            builds) can see platform classes. Auto-activates once
             target/idea-lib/app.jar exists; the first project import requires
             running `mvn initialize` once to populate the directory.
-
-            The actual compile classpath still comes from the antrun + compilerArgs
-            mechanism above — these dependencies exist purely for IDE indexing.
 
             Regenerate the list after bumping <intellij.version>:
               mvn initialize
@@ -271,6 +298,7 @@
 <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>junit4</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/junit4.jar</systemPath></dependency>
 <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>lib-client</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/lib-client.jar</systemPath></dependency>
 <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>lib</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/lib.jar</systemPath></dependency>
+<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>markdown</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/markdown.jar</systemPath></dependency>
 <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>nio-fs</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/nio-fs.jar</systemPath></dependency>
 <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>opentelemetry</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/opentelemetry.jar</systemPath></dependency>
 <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>platform-loader</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/platform-loader.jar</systemPath></dependency>
