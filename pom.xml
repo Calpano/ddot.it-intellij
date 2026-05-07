@@ -17,9 +17,18 @@
         BUILD MODEL.
         JetBrains only publishes the IDE as a zip artifact (no individual platform jars
         on Maven Central / JetBrains-releases). We download that zip with the
-        maven-dependency-plugin, unpack its top-level jars into target/idea-lib, and
-        feed them to javac via the compiler plugin's compilerArgs (-classpath override).
-        First build downloads ~1.5 GB; subsequent builds are cached in ~/.m2.
+        maven-dependency-plugin, unpack its top-level jars into target/idea-lib at the
+        `initialize` phase, and reference each jar as a system-scoped dependency. This
+        is the same model CLI Maven and IntelliJ's JPS build both use — there is no
+        compilerArgs `-classpath` override to interfere with IntelliJ's auto-classpath.
+
+        Fresh-checkout bootstrap (one time):
+          mvn -N initialize
+          mvn package
+
+        After that, `mvn package` works in one step. `mvn clean` preserves
+        target/idea-lib (configured below), so the 1.5 GB unpack isn't redone
+        on every clean build.
     -->
 
     <properties>
@@ -46,6 +55,19 @@
         </repository>
     </repositories>
 
+    <!--
+        Every dependency below is the unpacked IntelliJ platform's jars. The unpack
+        runs at `initialize` phase, before dependency resolution kicks in for `compile`,
+        so on a fresh checkout `mvn package` works in one step. After a `mvn clean`,
+        target/idea-lib survives (see maven-clean-plugin config).
+
+        Regenerate the list after bumping <intellij.version>:
+          mvn -N initialize
+          ls target/idea-lib/*.jar | sort | while read j; do
+            b=$(basename "$j" .jar)
+            printf '        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>%s</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/%s.jar</systemPath></dependency>\n' "$b" "$b"
+          done
+    -->
     <dependencies>
         <dependency>
             <groupId>junit</groupId>
@@ -53,12 +75,91 @@
             <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>annotations</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/annotations.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>app-client</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/app-client.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>app</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/app.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>bouncy-castle</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/bouncy-castle.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>external-system-rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/external-system-rt.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>externalProcess-rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/externalProcess-rt.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>forms_rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/forms_rt.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>groovy</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/groovy.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>idea_rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/idea_rt.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij-test-discovery</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij-test-discovery.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.ide.startup.importSettings</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.ide.startup.importSettings.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.idea.customization.base</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.idea.customization.base.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.kotlin.onboarding-promoter</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.kotlin.onboarding-promoter.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.libraries.ktor.client</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.libraries.ktor.client.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.libraries.microba</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.libraries.microba.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.clouds</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.clouds.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.collaborationTools</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.collaborationTools.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.coverage.agent</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.coverage.agent.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.coverage</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.coverage.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.execution.dashboard</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.execution.dashboard.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.execution.serviceView</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.execution.serviceView.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.experiment</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.experiment.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.ide.newUiOnboarding</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.ide.newUiOnboarding.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.images.backend.svg</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.images.backend.svg.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.images.copyright</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.images.copyright.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.kernel.backend</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.kernel.backend.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.kernel</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.kernel.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.lvcs.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.lvcs.impl.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.ml.embeddings</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.ml.embeddings.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.navbar.backend</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.navbar.backend.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.navbar.frontend</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.navbar.frontend.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.navbar</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.navbar.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.navbar.monolith</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.navbar.monolith.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.settings.local</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.settings.local.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.smRunner.vcs</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.smRunner.vcs.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.vcs.dvcs.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.vcs.dvcs.impl.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.vcs.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.vcs.impl.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.vcs.log.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.vcs.log.impl.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.smart.update</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.smart.update.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.xml.xmlbeans</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.xml.xmlbeans.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>jps-model</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/jps-model.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>jsch-agent</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/jsch-agent.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>junit4</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/junit4.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>lib-client</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/lib-client.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>lib</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/lib.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>markdown</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/markdown.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>nio-fs</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/nio-fs.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>opentelemetry</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/opentelemetry.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>platform-loader</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/platform-loader.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>protobuf</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/protobuf.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>rd</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/rd.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>stats</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/stats.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>testFramework</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/testFramework.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>trove</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/trove.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>util_rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/util_rt.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>util-8</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/util-8.jar</systemPath></dependency>
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>util</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/util.jar</systemPath></dependency>
     </dependencies>
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
 
         <plugins>
+            <!--
+                Preserve target/idea-lib across `mvn clean` so we don't repeat
+                the 1.5 GB unpack on every clean build, and so the system-scoped
+                dependencies above keep resolving on the next build.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>3.4.0</version>
+                <configuration>
+                    <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                    <filesets>
+                        <fileset>
+                            <directory>${project.build.directory}</directory>
+                            <excludes>
+                                <exclude>idea-lib/**</exclude>
+                            </excludes>
+                        </fileset>
+                    </filesets>
+                </configuration>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -107,16 +208,6 @@
                 </executions>
             </plugin>
 
-            <!--
-                The antrun-driven classpath build and the compilerArgs `-classpath`
-                override live in the `cli-build` profile (activated when running
-                outside IntelliJ). IntelliJ's JPS replays maven-compiler-plugin's
-                compilerArgs verbatim but never runs the `generate-resources` phase
-                that sets `${idea.classpath}` — leaving an unresolved arg that
-                makes javac fail with "invalid flag: UTF-8". Keeping the override
-                CLI-only lets JPS rely on the system-scoped jars from the
-                `idea-platform-deps` profile instead.
-            -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -154,164 +245,6 @@
     </build>
 
     <profiles>
-        <!--
-            CLI compile path. Active when *not* running under IntelliJ
-            (IntelliJ sets `-Didea.active=true` for both embedded-Maven runs and
-            project imports). Builds an explicit classpath of unpacked IDEA jars
-            via antrun and feeds it to javac through `-classpath`. This bypass
-            exists because Maven feeds the compiler via @argfile, where the
-            `dir/*` wildcard doesn't expand.
-
-            IntelliJ does NOT need this: JPS resolves the IDE jars through the
-            system-scoped dependencies declared in `idea-platform-deps`.
-            Replaying the `-classpath` override under JPS would erase those jars
-            (last `-classpath` wins) and additionally fail at IntelliJ build
-            time because `${idea.classpath}` is unresolved (the `generate-resources`
-            phase never ran), making javac mis-parse the next token as a flag —
-            "invalid flag: UTF-8" in practice.
-        -->
-        <profile>
-            <id>cli-build</id>
-            <activation>
-                <property>
-                    <name>!idea.active</name>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-antrun-plugin</artifactId>
-                        <version>3.1.0</version>
-                        <executions>
-                            <execution>
-                                <id>build-idea-classpath</id>
-                                <phase>generate-resources</phase>
-                                <goals><goal>run</goal></goals>
-                                <configuration>
-                                    <exportAntProperties>true</exportAntProperties>
-                                    <target>
-                                        <fileset id="idea.cp.fs" dir="${idea.lib.dir}">
-                                            <include name="*.jar"/>
-                                            <!--
-                                                kotlin-compiler*.jar / *-compiler*.jar ship
-                                                shadowed copies of platform classes that win
-                                                the alphabetical classpath race.
-                                            -->
-                                            <exclude name="kotlin-compiler*.jar"/>
-                                            <exclude name="*-compiler.jar"/>
-                                            <exclude name="*-compiler-*.jar"/>
-                                            <exclude name="kotlinc.*.jar"/>
-                                            <!--
-                                                annotations-13.0.jar ships a pre-TYPE_USE
-                                                @NotNull and would shadow modern annotations.jar.
-                                            -->
-                                            <exclude name="annotations-*.jar"/>
-                                        </fileset>
-                                        <pathconvert refid="idea.cp.fs" property="idea.classpath" pathsep=":"/>
-                                    </target>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <version>3.13.0</version>
-                        <configuration>
-                            <compilerArgs>
-                                <arg>-classpath</arg>
-                                <!--suppress UnresolvedMavenProperty -->
-                                <arg>${idea.classpath}</arg>
-                            </compilerArgs>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <!--
-            Expose the unpacked IntelliJ jars as system-scope dependencies so
-            both IntelliJ's resolver (for indexing) and JPS (for IDE-internal
-            builds) can see platform classes. Auto-activates once
-            target/idea-lib/app.jar exists; the first project import requires
-            running `mvn initialize` once to populate the directory.
-
-            Regenerate the list after bumping <intellij.version>:
-              mvn initialize
-              ls target/idea-lib/*.jar | sort | while read j; do
-                b=$(basename "$j" .jar)
-                printf '            <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>%s</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/%s.jar</systemPath></dependency>\n' "$b" "$b"
-              done
-        -->
-        <profile>
-            <id>idea-platform-deps</id>
-            <activation>
-                <file>
-                    <exists>${project.basedir}/target/idea-lib/app.jar</exists>
-                </file>
-            </activation>
-            <dependencies>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>annotations</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/annotations.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>app-client</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/app-client.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>app</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/app.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>bouncy-castle</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/bouncy-castle.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>external-system-rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/external-system-rt.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>externalProcess-rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/externalProcess-rt.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>forms_rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/forms_rt.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>groovy</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/groovy.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>idea_rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/idea_rt.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij-test-discovery</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij-test-discovery.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.ide.startup.importSettings</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.ide.startup.importSettings.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.idea.customization.base</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.idea.customization.base.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.kotlin.onboarding-promoter</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.kotlin.onboarding-promoter.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.libraries.ktor.client</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.libraries.ktor.client.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.libraries.microba</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.libraries.microba.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.clouds</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.clouds.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.collaborationTools</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.collaborationTools.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.coverage.agent</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.coverage.agent.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.coverage</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.coverage.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.execution.dashboard</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.execution.dashboard.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.execution.serviceView</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.execution.serviceView.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.experiment</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.experiment.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.ide.newUiOnboarding</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.ide.newUiOnboarding.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.images.backend.svg</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.images.backend.svg.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.images.copyright</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.images.copyright.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.kernel.backend</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.kernel.backend.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.kernel</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.kernel.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.lvcs.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.lvcs.impl.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.ml.embeddings</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.ml.embeddings.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.navbar.backend</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.navbar.backend.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.navbar.frontend</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.navbar.frontend.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.navbar</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.navbar.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.navbar.monolith</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.navbar.monolith.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.settings.local</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.settings.local.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.smRunner.vcs</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.smRunner.vcs.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.vcs.dvcs.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.vcs.dvcs.impl.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.vcs.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.vcs.impl.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.vcs.log.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.vcs.log.impl.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.smart.update</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.smart.update.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.xml.xmlbeans</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.xml.xmlbeans.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>jps-model</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/jps-model.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>jsch-agent</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/jsch-agent.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>junit4</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/junit4.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>lib-client</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/lib-client.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>lib</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/lib.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>markdown</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/markdown.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>nio-fs</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/nio-fs.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>opentelemetry</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/opentelemetry.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>platform-loader</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/platform-loader.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>protobuf</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/protobuf.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>rd</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/rd.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>stats</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/stats.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>testFramework</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/testFramework.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>trove</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/trove.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>util_rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/util_rt.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>util-8</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/util-8.jar</systemPath></dependency>
-<dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>util</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/util.jar</systemPath></dependency>
-            </dependencies>
-        </profile>
 
         <!--
             Run the JetBrains plugin verifier against the packaged plugin zip.
