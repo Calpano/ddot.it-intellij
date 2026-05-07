@@ -6,8 +6,8 @@
          for this file type" balloon when an unknown .ddot file opens.
          ============================================================ -->
     <id>com.calpano.ddot</id>
-    <name>ddot.it - Knowledge Graph Notation</name>
-    <version>0.0.6</version>
+    <name>ddot.it</name>
+    <version>0.0.8</version>
     <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
 
     <!-- IDE compatibility range. Matches pom.xml `intellij.version=2024.2`.
@@ -16,7 +16,7 @@
     <idea-version since-build="242" until-build="261.*"/>
 
     <description><![CDATA[
-        <p>Authoring support for <a href="https://ddot.it">ddot.it</a>, a minimal text format
+        <p>Authoring support for <a href="https://ddot.it">ddot.it — Knowledge Graph Notation</a>, a minimal text format
         for typed knowledge graphs. Each line is a triple —
         <code>subject ..predicate.. object</code> — written with double-dot separators.</p>
         <ul>
@@ -38,7 +38,17 @@
     ]]></description>
 
     <change-notes><![CDATA[
-        <h3>0.0.6 — initial Marketplace release</h3>
+        <h3>0.0.8</h3>
+        <ul>
+            <li>Minor change in logging.</li>
+        </ul>
+        <h3>0.0.7</h3>
+        <ul>
+            <li>Refactor away from deprecated IntelliJ APIs.</li>
+            <li>Annotator now logs identifying context (file path, element class, range,
+                text snippet) when it fails.</li>
+        </ul>
+        <h3>0.0.6 — Initial Marketplace Release</h3>
         <ul>
             <li>Real PSI, formatter, folding, structure view, completion, JSONL export.</li>
             <li>Rename refactoring: Shift+F6 on an entity renames every
