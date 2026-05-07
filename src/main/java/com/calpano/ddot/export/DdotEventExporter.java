@@ -27,8 +27,14 @@ public final class DdotEventExporter {
 
     private static final Pattern SEP = Pattern.compile("\\.{4}|\\.{2}");
 
-    private static final String OFF_DIR = "ddot.it/off";
-    private static final String ON_DIR = "ddot.it/on";
+    // Both forms are equivalent: `!!` is shorthand for `ddot.it/`.
+    private static final String OFF_DIR       = "ddot.it/off";
+    private static final String ON_DIR        = "ddot.it/on";
+    private static final String OFF_DIR_SHORT = "!!off";
+    private static final String ON_DIR_SHORT  = "!!on";
+
+    private static boolean isOff(String s) { return OFF_DIR.equals(s) || OFF_DIR_SHORT.equals(s); }
+    private static boolean isOn(String s)  { return ON_DIR.equals(s)  || ON_DIR_SHORT.equals(s);  }
 
     public static @NotNull List<DdotEvent> parse(@NotNull String text,
                                                  @NotNull String kind,
@@ -44,13 +50,13 @@ public final class DdotEventExporter {
             String trimmed = lines[i].trim();
             if (trimmed.isEmpty()) continue;
 
-            if (OFF_DIR.equals(trimmed)) {
+            if (isOff(trimmed)) {
                 off = true;
                 // An open multi-line meta block can't survive an off span; close it.
                 openMetaEvent = null;
                 continue;
             }
-            if (ON_DIR.equals(trimmed)) {
+            if (isOn(trimmed)) {
                 off = false;
                 continue;
             }
@@ -182,13 +188,15 @@ public final class DdotEventExporter {
 
     private static @Nullable Triple extractTriple(List<String> segments, List<String> seps,
                                                   @Nullable String inheritedSubject) {
-        // Typed: from ..type.. to (or continuation: ..type.. to)
+        // Typed: from ..type.. to (or continuation: ..type.. to).
+        // Empty type ⇒ `.. ..` form, a typographic variant of `....` (untyped).
         if (segments.size() == 3 && seps.size() == 2
                 && seps.get(0).equals("..") && seps.get(1).equals("..")) {
             String s = segments.get(0), p = segments.get(1), o = segments.get(2);
-            if (o.isEmpty() || p.isEmpty()) return null;
+            if (o.isEmpty()) return null;
             String from = !s.isEmpty() ? s : inheritedSubject;
             if (from == null) return null;
+            if (p.isEmpty()) return new Triple(from, null, o);
             return new Triple(from, p, o);
         }
         // Simple: from .... to (or continuation: .... to)

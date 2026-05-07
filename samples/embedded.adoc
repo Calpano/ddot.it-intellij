@@ -1,14 +1,17 @@
 = Embedded ddot.it in AsciiDoc
+:source-highlighter: rouge
 
 ddot.it triples can be authored inline. The plugin recognises the labels
 `ddot`, `ddot.it`, and `ddotit` on listing blocks.
 
+.Example 1
 [source,ddot]
 ----
 Project Eagle ..started in.. 2024
 John Doe ..leads.. Project Eagle ,, ..since.. 2025
 ----
 
+.Example 2
 [source,ddot.it]
 ----
 Untyped link
@@ -18,6 +21,7 @@ Project Eagle .... Moonshot
 
 ----
 
+.Example 3
 [ddotit]
 ----
 Dirk Hagemann ..works at.. SAP ,,

@@ -7,7 +7,7 @@
          ============================================================ -->
     <id>com.calpano.ddot</id>
     <name>ddot.it</name>
-    <version>0.0.9</version>
+    <version>0.1.0</version>
     <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
 
     <!-- IDE compatibility range. Matches pom.xml `intellij.version=2024.2`.
@@ -38,6 +38,35 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.1.0</h3>
+        <ul>
+            <li>AsciiDoc preview support for ddot blocks. New Tools menu action
+                <i>Install AsciiDoc Preview Extension</i> drops a Ruby
+                AsciidoctorJ extension into <code>&lt;project&gt;/.asciidoctor/lib/</code>;
+                <code>[ddot]</code>, <code>[ddotit]</code> and
+                <code>[source,ddot|ddot.it|ddotit]</code> blocks then render
+                with the same role coloring as the editor and the Markdown
+                preview, with titles, ids and roles preserved on the block.</li>
+            <li>Rouge lexer for ddot.it shipped alongside the extension —
+                set <code>:source-highlighter: rouge</code> in your
+                <code>.adoc</code> and <code>[source,ddot]</code> blocks
+                dispatch through the standard Asciidoctor highlighter
+                pipeline against the canonical token vocabulary
+                (<a href="https://github.com/calpano/ddot.it/blob/main/test-data/tokens.md">tokens.md</a>).</li>
+            <li>Cross-implementation golden corpus at
+                <code>ddot.it/test-data/cases/</code> — every case has
+                <code>expected.body.html</code>, <code>expected.events.jsonl</code>
+                and <code>expected.tokens.json</code>, asserted byte-equal by
+                the Java preview renderer, the JSONL exporter, the Ruby
+                preview renderer (canonical), and the Rouge / TextMate
+                highlighters.</li>
+            <li>Fixes: continuation lines (<code>..pred.. obj</code>) now
+                colour <code>pred</code> as the predicate, not the object
+                (slot-advance bug); installed <code>.rb</code> files are now
+                stamped with the plugin version on the first line so stale
+                installs are easy to spot
+                (<code>head -1 .asciidoctor/lib/ddot-extension.rb</code>).</li>
+        </ul>
         <h3>0.0.9</h3>
         <ul>
             <li>Embed ddot.it inside Markdown fenced code blocks
@@ -50,6 +79,9 @@
                 inside an off span are dimmed in the editor, collapsible as a
                 fold, hidden from the structure view, and skipped by the
                 <i>Export as JSON</i> action.</li>
+            <li>Markdown preview: <code>```ddot</code> fences now render with the
+                same role-aware coloring (subject / predicate / object / metadata /
+                command) as the editor, tracking the active color scheme.</li>
         </ul>
         <h3>0.0.8</h3>
         <ul>
@@ -179,6 +211,16 @@
                     class="com.calpano.ddot.actions.ExportJsonAction"
                     text="Export as JSON"
                     description="Export the current ddot.it document as JSONL events to a file next to the source"/>
+            <!-- Registered here (not in ddot-asciidoc.xml) so the menu entry
+                 is visible regardless of whether the AsciiDoc plugin is
+                 installed yet — the action's whole point is to help with
+                 setting that up. The action itself checks for the AsciiDoc
+                 plugin at runtime. -->
+            <action
+                    id="Ddot.InstallAsciidocExtension"
+                    class="com.calpano.ddot.actions.InstallAsciidocExtensionAction"
+                    text="Install AsciiDoc Preview Extension"
+                    description="Copy ddot-extension.rb into &lt;contentRoot&gt;/.asciidoctor/lib/ so the AsciiDoc preview renders [ddot] blocks with role coloring."/>
         </group>
     </actions>
 </idea-plugin>

@@ -12,4 +12,19 @@
         <multiHostInjector
                 implementation="com.calpano.ddot.injection.DdotAsciiDocInjector"/>
     </extensions>
+
+    <!--
+        Preview-side rendering for ddot blocks in the AsciiDoc preview pane is
+        delivered via a Ruby AsciidoctorJ extension shipped as a plugin
+        resource (see InstallAsciidocExtensionAction, registered in the main
+        plugin.xml so it stays visible even when the asciidoc plugin isn't
+        installed yet — otherwise the menu entry that helps the user set
+        things up wouldn't appear until they'd already done half the setup).
+
+        TODO (Option C): once an upstream EP exists for registering
+        AsciidoctorJ extensions from third-party plugins, drop the install
+        action and register the extension directly here. See
+        https://github.com/asciidoctor/asciidoctor-intellij-plugin — file an
+        issue/PR for `org.asciidoc.intellij.asciidoctorExtensions`.
+    -->
 </idea-plugin>

@@ -10,5 +10,13 @@
     <extensions defaultExtensionNs="org.intellij.markdown">
         <fenceLanguageProvider
                 implementation="com.calpano.ddot.injection.DdotMarkdownFenceProvider"/>
+        <!--
+            Custom HTML renderer for the Markdown preview pane. Without this,
+            the default lexer-only highlighter handles ddot fences and misses
+            the role-aware coloring (subject/predicate/object/metadata/command)
+            that comes from DdotHighlightAnnotator in the editor.
+        -->
+        <fenceGeneratingProvider
+                implementation="com.calpano.ddot.preview.DdotMarkdownPreviewRenderer"/>
     </extensions>
 </idea-plugin>

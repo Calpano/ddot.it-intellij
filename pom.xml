@@ -7,7 +7,7 @@
 
     <groupId>com.calpano.ddot</groupId>
     <artifactId>ddot.it-intellij</artifactId>
-    <version>0.0.9</version>
+    <version>0.1.0</version>
     <packaging>jar</packaging>
 
     <name>ddot.it IntelliJ Plugin</name>
@@ -43,6 +43,16 @@
         <idea.lib.dir>${project.build.directory}/idea-lib</idea.lib.dir>
         <verifier.version>1.402</verifier.version>
         <verifier.ide.path>/Applications/IntelliJ IDEA.app/Contents</verifier.ide.path>
+
+        <!--
+            Cross-implementation golden corpus shared between this project and
+            the Ruby renderer in ../ddot.it/. Tests under PreviewHtmlGoldenTest
+            walk this directory; if it isn't present (e.g. fresh CI checkout
+            of just this repo) the test logs a warning and passes vacuously
+            instead of failing. Override on the command line:
+              mvn test -Dddot.test-data.dir=/abs/path/to/test-data
+        -->
+        <ddot.test-data.dir>${project.basedir}/../ddot.it/test-data</ddot.test-data.dir>
     </properties>
 
     <repositories>
@@ -221,6 +231,17 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.5.0</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <ddot.test-data.dir>${ddot.test-data.dir}</ddot.test-data.dir>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
 
             <plugin>

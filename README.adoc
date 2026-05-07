@@ -1,0 +1,152 @@
+= ddot.it — IntelliJ IDEA support
+:toc:
+
+Authoring support for *https://ddot.it[ddot.it]*, a minimal text format for typed knowledge graphs. Each line is a triple — `subject ..predicate.. object` — written with double-dot separators.
+
+== Facts
+
+License: MIT
+
+=== Meta
+
+[source,ddot.it]
+----
+ddot.it/intellij ..has type.. IntelliJ plugin
+..syntax.. ddot.it
+..provides.. syntax highlighting
+..provides.. smart autocompletion
+..provides.. code folding
+..provides.. structure view of all subjects
+
+ddot.it .. url .. https://ddot.it
+----
+
+== What is ddot.it?
+
+https://ddot.it[ddot.it] is a line-oriented graph notation built around two separators:
+
+* `..` — typed link: `subject ..predicate.. object`
+* `....` — simple (untyped) link: `subject .... object`
+
+Continuations and metadata extend a triple without repeating the subject:
+
+[source,ddot]
+----
+Project Eagle ..started in.. 2024
+..doc site.. example.com/docbase/8dcjsid
+
+John Doe ..leads.. Project Eagle ,, ..since.. 2025
+
+Project Eagle .... Moonshot
+
+Dirk Hagemann ..works at.. SAP ,,
+..year.. 2010
+..fictive.. yes
+,,
+----
+
+Lines starting with `..` continue the previous subject. `,,` opens metadata; a closing `,,` ends a multi-line metadata block.
+
+For the full format spec and the canonical event JSON shape, see the https://ddot.it/developer-guide.html#events[ddot.it Developer Guide → Events].
+
+== What this plugin does
+
+* *Syntax highlighting* for `.ddot` files (configurable colors under _Settings → Editor → Color Scheme → ddot.it_).
+* *Smart completions* that understand triple slots:
+* typing in the subject slot suggests known subjects;
+* typing in the predicate slot suggests known predicates;
+* typing in the object slot suggests known objects.
+* Multi-word entities (e.g. `John Doe`) complete as a single unit.
+* Suggestions are *prefix-matched* (case-insensitive), not fuzzy.
+* Picking a subject auto-inserts `..` and surfaces predicates; picking a predicate auto-inserts `..` and surfaces objects.
+* On a fresh line after a complete triple, suggestions auto-open with `..rel..`-form predicates.
+* When the cursor sits right after `..`, predicates show as `..rel..` items whose range absorbs the existing `..` (no doubled dots on accept).
+* *Canonical formatter* (Code → Reformat Code, ⌘⌥L / Ctrl+Alt+L):
+* Typed link → `subject ..predicate.. object`
+* Simple link → `subject .... object`
+* Continuation → `..predicate.. object`
+* Metadata → `,, content` inline, `,,` at end of line
+* *Structure view* — every distinct subject in the file is listed in the file structure popup (⌘F12 / Ctrl+F12).
+* *Folding* — collapses a subject and its continuation lines.
+* *Live templates* — type a prefix, press Tab:
+* `ddot-typed` — typed link
+* `ddot-link` — simple link
+* `ddot-property` — typed link with metadata
+* `ddot-continue` — continuation predicate
+* `ddot-meta` — metadata pair
+* *Quick documentation* — Ctrl+Q on a triple shows the line shape (typed link / simple link / metadata).
+* *Tools menu* (Tools → ddot.it):
+* *Validate Document* — flag incomplete triples;
+* *Format Document* — same as Reformat Code;
+* *Export as JSON* — emits one https://ddot.it/developer-guide.html#events[triple event] per line (JSONL) with fields `from`, `type`, `to`, `meta`, `kind`, `source`, `location`.
+
+== Previews
+
+ddot.it blocks render with the same role-aware coloring (subject / predicate / object / metadata / command) used in the editor — both inside Markdown and inside AsciiDoc, in IntelliJ's preview panes.
+
+=== Markdown — zero setup
+
+Open a `.md` file and use a fenced code block. The bundled JetBrains Markdown plugin is enough; no extra steps.
+
+[source,markdown]
+----
+```ddot
+Project Eagle ..started in.. 2024
+..doc site.. example.com/docbase/8dcjsid
+
+John Doe ..leads.. Project Eagle ,, ..since.. 2025
+```
+----
+
+Recognised fence labels: `ddot`, `ddot.it`, `ddotit`. Colors come from your active editor color scheme — tweak them under _Settings → Editor → Color Scheme → ddot.it_; the preview tracks the change.
+
+=== AsciiDoc — one-time per-project install
+
+The https://plugins.jetbrains.com/plugin/7391-asciidoc[AsciiDoc plugin] doesn't expose an extension point for third-party preview renderers, so we ship the preview as an Asciidoctor extension that lives next to your project. One-time install, per project:
+
+. Install the AsciiDoc plugin if you haven't already, and open your project.
+. *Tools → ddot.it → Install AsciiDoc Preview Extension*.
+ This drops `ddot-render.rb` and `ddot-extension.rb` into `<projectRoot>/.asciidoctor/lib/`.
+. The AsciiDoc plugin shows a banner asking to trust the new extension files. Click *Enable* for both.
+. Open or refresh the AsciiDoc preview.
+
+After that, `[ddot]` / `[source,ddot]` listing blocks render with role coloring:
+
+[source,adoc]
+----
+[source,ddot]
+----
+Project Eagle ..started in.. 2024
+
+Dirk Hagemann ..works at.. SAP ,,
+..year.. 2010
+..fictive.. yes
+,,
+----
+----
+
+Recognised block labels: `ddot`, `ddot.it`, `ddotit`. The editor pane (syntax highlighting, completion, formatting on the block body) works without the install — only the AsciiDoc _preview rendering_ needs it.
+
+Override the palette per document via AsciiDoc attributes (the Markdown side reads from the editor scheme directly and doesn't need this):
+
+[source,adoc]
+----
+:ddot-color-subject: #aa00aa
+:ddot-color-predicate: #1750eb
+:ddot-color-object: #067d17
+----
+
+== Building from source
+
+[source,bash]
+----
+mvn package
+----
+
+The plugin zip is at `target/ddot.it-intellij-<version>.zip`. Install it via _Settings → Plugins → ⚙ → Install Plugin from Disk…_ and pick the zip.
+
+Then open or create a `.ddot` file to try it.
+
+== Status
+
+The language is stable. This plugin is feature-complete for authoring.
