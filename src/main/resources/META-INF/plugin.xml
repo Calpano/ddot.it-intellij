@@ -46,6 +46,10 @@
                 (<code>[source,ddot]</code>, <code>[ddot.it]</code>, …).
                 Highlighting, completion, formatting, rename and find-usages
                 all work inside the embedded fragment.</li>
+            <li>Honour <code>ddot.it/off</code> and <code>ddot.it/on</code>: lines
+                inside an off span are dimmed in the editor, collapsible as a
+                fold, hidden from the structure view, and skipped by the
+                <i>Export as JSON</i> action.</li>
         </ul>
         <h3>0.0.8</h3>
         <ul>

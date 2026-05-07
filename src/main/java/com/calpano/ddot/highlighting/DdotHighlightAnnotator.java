@@ -1,14 +1,20 @@
 package com.calpano.ddot.highlighting;
 
 import com.calpano.ddot.psi.DdotEntity;
+import com.calpano.ddot.psi.DdotFile;
+import com.calpano.ddot.psi.DdotLine;
 import com.calpano.ddot.psi.DdotMetadata;
+import com.calpano.ddot.psi.DdotOffRegions;
 import com.calpano.ddot.psi.DdotPsiUtil;
 import com.calpano.ddot.psi.DdotRole;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;
 import com.intellij.lang.annotation.HighlightSeverity;
+import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
+import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
@@ -33,10 +39,26 @@ public final class DdotHighlightAnnotator implements Annotator {
 
     @Override
     public void annotate(@NotNull PsiElement element, @NotNull AnnotationHolder holder) {
+        if (element instanceof DdotLine line) {
+            dimIfInactive(line, holder);
+            return;
+        }
         if (element instanceof DdotEntity entity) {
             highlightEntity(entity, holder);
         } else if (element instanceof DdotMetadata) {
             paint(holder, element, DdotSyntaxHighlighter.METADATA);
+        }
+    }
+
+    private static void dimIfInactive(DdotLine line, AnnotationHolder holder) {
+        PsiFile psi = line.getContainingFile();
+        if (!(psi instanceof DdotFile file)) return;
+        Document doc = PsiDocumentManager.getInstance(file.getProject()).getDocument(file);
+        if (doc == null) return;
+        DdotOffRegions.Result regions = DdotOffRegions.regionsFor(file);
+        int lineIdx = doc.getLineNumber(line.getTextRange().getStartOffset());
+        if (regions.isInactive(lineIdx)) {
+            paint(holder, line, DdotSyntaxHighlighter.INACTIVE);
         }
     }
 

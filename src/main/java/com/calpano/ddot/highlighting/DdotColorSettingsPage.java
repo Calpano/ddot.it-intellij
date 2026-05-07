@@ -19,6 +19,7 @@ public final class DdotColorSettingsPage implements ColorSettingsPage {
             new AttributesDescriptor("Object", DdotSyntaxHighlighter.OBJECT),
             new AttributesDescriptor("Metadata", DdotSyntaxHighlighter.METADATA),
             new AttributesDescriptor("Command (ddot.it/..., !!)", DdotSyntaxHighlighter.COMMAND),
+            new AttributesDescriptor("Inactive line (inside ddot.it/off …/on)", DdotSyntaxHighlighter.INACTIVE),
             new AttributesDescriptor("Entity (base)", DdotSyntaxHighlighter.ENTITY),
             new AttributesDescriptor("Separator (.. and ....)", DdotSyntaxHighlighter.SEPARATOR),
             new AttributesDescriptor("Metadata separator (,,)", DdotSyntaxHighlighter.METADATA_SEPARATOR),

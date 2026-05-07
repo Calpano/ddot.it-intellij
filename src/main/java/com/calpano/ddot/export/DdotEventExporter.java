@@ -27,6 +27,9 @@ public final class DdotEventExporter {
 
     private static final Pattern SEP = Pattern.compile("\\.{4}|\\.{2}");
 
+    private static final String OFF_DIR = "ddot.it/off";
+    private static final String ON_DIR = "ddot.it/on";
+
     public static @NotNull List<DdotEvent> parse(@NotNull String text,
                                                  @NotNull String kind,
                                                  @NotNull String source) {
@@ -35,10 +38,23 @@ public final class DdotEventExporter {
 
         String currentSubject = null;
         DdotEvent openMetaEvent = null;
+        boolean off = false;
 
         for (int i = 0; i < lines.length; i++) {
             String trimmed = lines[i].trim();
             if (trimmed.isEmpty()) continue;
+
+            if (OFF_DIR.equals(trimmed)) {
+                off = true;
+                // An open multi-line meta block can't survive an off span; close it.
+                openMetaEvent = null;
+                continue;
+            }
+            if (ON_DIR.equals(trimmed)) {
+                off = false;
+                continue;
+            }
+            if (off) continue;
 
             if (openMetaEvent != null) {
                 if (trimmed.equals(",,")) {

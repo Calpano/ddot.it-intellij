@@ -41,6 +41,15 @@ public final class DdotSyntaxHighlighter extends SyntaxHighlighterBase {
     public static final TextAttributesKey COMMAND = TextAttributesKey.createTextAttributesKey(
             "DDOT_COMMAND", DefaultLanguageHighlighterColors.STATIC_FIELD);
 
+    /**
+     * Foreground-only dimming applied to lines inside a {@code ddot.it/off … /on}
+     * span. Falls back to the IDE's "unused element" greying so themes adopt the
+     * convention automatically; layered annotations (like {@link #COMMAND} on the
+     * directive token itself) still win because this key sets foreground only.
+     */
+    public static final TextAttributesKey INACTIVE = TextAttributesKey.createTextAttributesKey(
+            "DDOT_INACTIVE", com.intellij.openapi.editor.colors.CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES);
+
     private static final TextAttributesKey[] SEPARATOR_KEYS = {SEPARATOR};
     private static final TextAttributesKey[] METADATA_SEPARATOR_KEYS = {METADATA_SEPARATOR};
     private static final TextAttributesKey[] COLON_SEPARATOR_KEYS = {COLON_SEPARATOR};
