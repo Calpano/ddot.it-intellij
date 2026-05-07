@@ -7,7 +7,7 @@
 
     <groupId>com.calpano.ddot</groupId>
     <artifactId>ddot.it-intellij</artifactId>
-    <version>0.0.6</version>
+    <version>0.0.8</version>
     <packaging>jar</packaging>
 
     <name>ddot.it IntelliJ Plugin</name>
@@ -189,4 +189,55 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+            Run the JetBrains plugin verifier against the packaged plugin zip.
+                mvn -Pverify verify
+            Override the IDE under test:
+                mvn -Pverify -Dverifier.ide.path=/path/to/IDE/Contents verify
+        -->
+        <profile>
+            <id>verify</id>
+            <properties>
+                <verifier.version>1.402</verifier.version>
+                <verifier.ide.path>/Applications/IntelliJ IDEA.app/Contents</verifier.ide.path>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>org.jetbrains.intellij.plugins</groupId>
+                    <artifactId>verifier-cli</artifactId>
+                    <version>${verifier.version}</version>
+                    <classifier>all</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.2.0</version>
+                        <executions>
+                            <execution>
+                                <id>verify-plugin</id>
+                                <phase>verify</phase>
+                                <goals><goal>java</goal></goals>
+                                <configuration>
+                                    <mainClass>com.jetbrains.pluginverifier.PluginVerifierMain</mainClass>
+                                    <arguments>
+                                        <argument>check-plugin</argument>
+                                        <argument>${project.build.directory}/${project.artifactId}-${project.version}.zip</argument>
+                                        <argument>${verifier.ide.path}</argument>
+                                        <argument>-verification-reports-dir</argument>
+                                        <argument>${project.build.directory}/verifier-reports</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
