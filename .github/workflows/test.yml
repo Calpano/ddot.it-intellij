@@ -1,0 +1,66 @@
+name: Test
+
+# Runs the cross-implementation golden tests in PreviewHtmlGoldenTest.
+# The tests compare the Java preview renderer + parser output against
+# fixtures in `../ddot.it/test-data/cases/`, so we sibling-checkout
+# Calpano/ddot.it alongside this repo.
+#
+# IntelliJ's platform jars aren't published as separate Maven
+# artifacts; the pom downloads the IDE zip and unpacks platform jars
+# at the `initialize` phase into target/idea-lib/. The unpack is
+# heavy (~1.5 GB), so we cache target/idea-lib keyed off the pom's
+# <intellij.version>. Cache hit ⇒ run is ~30s; cache miss ⇒ ~3-5min.
+#
+# Publishing to JetBrains Marketplace is intentionally NOT wired up
+# yet. Add a publish-marketplace.yml when ready.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ddot.it-intellij
+    steps:
+      - name: Checkout ddot.it-intellij
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          path: ddot.it-intellij
+
+      - name: Checkout ddot.it (test-data corpus)
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: Calpano/ddot.it
+          path: ddot.it
+
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Read intellij.version from pom (for cache key)
+        id: pom
+        run: |
+          v=$(grep -E '<intellij\.version>' pom.xml | sed -E 's/.*<intellij\.version>(.*)<\/intellij\.version>.*/\1/')
+          echo "intellij_version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache target/idea-lib (IntelliJ platform jars)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ddot.it-intellij/target/idea-lib
+          key: idea-lib-${{ steps.pom.outputs.intellij_version }}
+
+      - name: Bootstrap IntelliJ platform jars (idempotent on cache hit)
+        run: mvn -B -N initialize
+
+      - name: Run tests
+        run: mvn -B test
