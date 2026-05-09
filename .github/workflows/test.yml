@@ -50,7 +50,9 @@ jobs:
       - name: Read intellij.version from pom (for cache key)
         id: pom
         run: |
-          v=$(grep -E '<intellij\.version>' pom.xml | sed -E 's/.*<intellij\.version>(.*)<\/intellij\.version>.*/\1/')
+          # `-m 1` so we grab the actual <intellij.version> element and not
+          # later mentions inside <!-- comment --> blocks.
+          v=$(grep -m1 -E '<intellij\.version>[^<]+</intellij\.version>' pom.xml | sed -E 's/.*<intellij\.version>(.*)<\/intellij\.version>.*/\1/')
           echo "intellij_version=$v" >> "$GITHUB_OUTPUT"
 
       - name: Cache target/idea-lib (IntelliJ platform jars)
