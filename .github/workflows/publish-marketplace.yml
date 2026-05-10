@@ -168,9 +168,13 @@ jobs:
           if [ -n "${CHANNEL:-}" ]; then
             form_channel=(--form "channel=${CHANNEL}")
           fi
+          # The /updates/upload API accepts EITHER pluginId (numeric, the
+          # Marketplace-assigned plugin database id) OR xmlId (the string
+          # <id> from plugin.xml). We use xmlId so we don't have to hardcode
+          # a magic number that's invisible in this repo.
           curl --silent --show-error --fail-with-body \
             --header "Authorization: Bearer ${MARKETPLACE_TOKEN}" \
-            --form "pluginId=${PLUGIN_ID}" \
+            --form "xmlId=${PLUGIN_ID}" \
             --form "file=@${zip}" \
             "${form_channel[@]}" \
             "https://plugins.jetbrains.com/api/updates/upload"
