@@ -1,22 +1,27 @@
 <idea-plugin>
     <!--
         Loaded only when the JetBrains Markdown plugin (org.intellij.plugins.markdown)
-        is installed. Registers a CodeFenceLanguageProvider that maps the fence
-        info strings `ddot`, `ddot.it`, and `ddotit` to DdotLanguage. The Markdown
-        plugin's own CodeFenceInjector consults registered providers and injects
-        the resolved language into the fence body, giving us highlighting,
-        completion, formatting, rename, etc. inside Markdown fenced code blocks.
+        is installed. Two integrations:
+
+        1. fenceLanguageProvider — maps the fence info strings `ddot`,
+           `ddot.it`, and `ddotit` to DdotLanguage. The Markdown plugin's own
+           CodeFenceInjector consults registered providers and injects the
+           resolved language into the fence body, giving us highlighting,
+           completion, formatting, rename, etc. inside Markdown fenced code
+           blocks.
+
+        2. browserPreviewExtensionProvider — injects a stylesheet + JS into
+           the rendered preview that re-classes ddot fence content with
+           role-aware spans. We previously used the
+           `fenceGeneratingProvider` extension point to do this in Java, but
+           that interface is @ApiStatus.Internal and Marketplace blocks
+           plugins that override it. The browser-side post-processor uses
+           only public APIs.
     -->
     <extensions defaultExtensionNs="org.intellij.markdown">
         <fenceLanguageProvider
                 implementation="com.calpano.ddot.injection.DdotMarkdownFenceProvider"/>
-        <!--
-            Custom HTML renderer for the Markdown preview pane. Without this,
-            the default lexer-only highlighter handles ddot fences and misses
-            the role-aware coloring (subject/predicate/object/metadata/command)
-            that comes from DdotHighlightAnnotator in the editor.
-        -->
-        <fenceGeneratingProvider
-                implementation="com.calpano.ddot.preview.DdotMarkdownPreviewRenderer"/>
+        <browserPreviewExtensionProvider
+                implementation="com.calpano.ddot.preview.DdotPreviewBrowserExtension$Provider"/>
     </extensions>
 </idea-plugin>

@@ -1,0 +1,178 @@
+name: Publish to JetBrains Marketplace
+
+# Triggers:
+#   - Push of a tag matching v* (per CLAUDE.md release procedure: tag with
+#     v0.x.y after bumping plugin.xml + pom.xml). The build job verifies
+#     that the tag matches the version in plugin.xml before producing the
+#     artifact, so a mismatched tag fails fast instead of shipping the
+#     wrong thing.
+#   - workflow_dispatch for manual re-pushes (e.g. retry after a transient
+#     Marketplace 5xx) and for shipping to non-Stable channels.
+#
+# Two-job design:
+#   1. `build` runs the goldens, sanity-checks the tag, and builds the zip.
+#      No secrets, no environment — just a normal CI run.
+#   2. `publish` waits for required-reviewer approval on the
+#      `marketplace-publish` environment, then downloads the artifact and
+#      uploads it. The Marketplace token only becomes readable AFTER
+#      approval, so an attacker who hijacks the build job can't exfil it.
+#
+# Auth: Marketplace's upload API only accepts a permanent Hub token
+# (https://plugins.jetbrains.com/docs/marketplace/plugin-upload.html).
+# OIDC trusted publishing is not supported as of 2026-05. Setup:
+#   1. Generate a token at https://plugins.jetbrains.com/author/me/tokens
+#      with the "Marketplace API" scope.
+#   2. On GitHub: Settings → Environments → New environment
+#      `marketplace-publish` → add Required reviewers (yourself / shippers)
+#      → add the secret JETBRAINS_MARKETPLACE_TOKEN scoped to THIS
+#      environment (NOT a repo-wide secret — environment scoping is what
+#      makes the gate meaningful).
+#   3. Rotate periodically.
+#
+# This workflow does NOT run the IntelliJ Plugin Verifier. The verifier
+# needs the full IDE distribution (~1.5 GB extra download) and is the
+# developer's responsibility before tagging:  mvn -Pverify verify
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Marketplace channel (empty = Stable; e.g. Beta, Eap)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ddot.it-intellij
+    outputs:
+      plugin_id: ${{ steps.plugin.outputs.id }}
+      plugin_version: ${{ steps.plugin.outputs.version }}
+    steps:
+      - name: Checkout ddot.it-intellij
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          path: ddot.it-intellij
+
+      - name: Checkout ddot.it (test-data corpus)
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: Calpano/ddot.it
+          path: ddot.it
+
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Read intellij.version from pom (for cache key)
+        id: pom
+        run: |
+          v=$(grep -m1 -E '<intellij\.version>[^<]+</intellij\.version>' pom.xml | sed -E 's/.*<intellij\.version>(.*)<\/intellij\.version>.*/\1/')
+          echo "intellij_version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache target/idea-lib (IntelliJ platform jars)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ddot.it-intellij/target/idea-lib
+          key: idea-lib-${{ steps.pom.outputs.intellij_version }}
+
+      - name: Bootstrap IntelliJ platform jars (idempotent on cache hit)
+        run: mvn -B -N initialize
+
+      - name: Run golden tests (gate)
+        run: mvn -B test
+
+      - name: Read plugin id + version from plugin.xml
+        id: plugin
+        run: |
+          xml=src/main/resources/META-INF/plugin.xml
+          # First <id> / <version> in plugin.xml — these are the plugin's own
+          # (above any <depends> blocks, which don't have <version> children).
+          pid=$(grep -m1 -E '<id>[^<]+</id>' "$xml" | sed -E 's/.*<id>(.*)<\/id>.*/\1/')
+          ver=$(grep -m1 -E '<version>[^<]+</version>' "$xml" | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
+          echo "id=$pid"     >> "$GITHUB_OUTPUT"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches plugin.xml version
+        if: github.event_name == 'push'
+        run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          want="${{ steps.plugin.outputs.version }}"
+          if [ "$tag" != "$want" ]; then
+            echo "::error::Tag v$tag does not match plugin.xml <version>$want</version>." \
+                 "Bump both files to the same value and retag." >&2
+            exit 1
+          fi
+
+      - name: Build plugin zip
+        run: mvn -B -DskipTests package
+
+      - name: Upload plugin zip artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: plugin-zip
+          path: ddot.it-intellij/target/ddot.it-intellij-${{ steps.plugin.outputs.version }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Required-reviewer gate. The job pauses here until an approver clicks
+    # "Approve and run" on the GitHub Actions run page; only then does the
+    # job start and the environment-scoped secret become readable. The
+    # build job has already produced and uploaded the artifact, so the
+    # approver can inspect the build logs (tests passed, version matches)
+    # before approving.
+    environment: marketplace-publish
+    permissions:
+      contents: read
+    steps:
+      - name: Download plugin zip artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: plugin-zip
+          path: dist
+
+      - name: Upload to JetBrains Marketplace
+        env:
+          MARKETPLACE_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+          CHANNEL: ${{ github.event.inputs.channel }}
+          PLUGIN_ID: ${{ needs.build.outputs.plugin_id }}
+          PLUGIN_VERSION: ${{ needs.build.outputs.plugin_version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MARKETPLACE_TOKEN:-}" ]; then
+            echo "::error::JETBRAINS_MARKETPLACE_TOKEN not set on the" \
+                 "marketplace-publish environment. Add it at Settings →" \
+                 "Environments → marketplace-publish → Add secret." >&2
+            exit 1
+          fi
+          zip="dist/ddot.it-intellij-${PLUGIN_VERSION}.zip"
+          if [ ! -f "$zip" ]; then
+            echo "::error::Plugin zip not found at $zip" >&2
+            ls -la dist >&2
+            exit 1
+          fi
+          # Empty channel => Stable. Marketplace API treats absent/empty
+          # `channel` field as the default channel.
+          form_channel=()
+          if [ -n "${CHANNEL:-}" ]; then
+            form_channel=(--form "channel=${CHANNEL}")
+          fi
+          curl --silent --show-error --fail-with-body \
+            --header "Authorization: Bearer ${MARKETPLACE_TOKEN}" \
+            --form "pluginId=${PLUGIN_ID}" \
+            --form "file=@${zip}" \
+            "${form_channel[@]}" \
+            "https://plugins.jetbrains.com/api/updates/upload"
+          echo
+          echo "Uploaded ${zip} (channel: ${CHANNEL:-Stable})"

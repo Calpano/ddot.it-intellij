@@ -1,34 +1,42 @@
 package com.calpano.ddot.preview;
 
-import com.calpano.ddot.highlighting.DdotSyntaxHighlighter;
-import com.intellij.openapi.editor.colors.EditorColorsManager;
-import com.intellij.openapi.editor.colors.EditorColorsScheme;
-import com.intellij.openapi.editor.colors.TextAttributesKey;
-import com.intellij.openapi.editor.markup.TextAttributes;
-import org.intellij.markdown.ast.ASTNode;
-import org.intellij.plugins.markdown.extensions.CodeFenceGeneratingProvider;
 import org.jetbrains.annotations.NotNull;
 
-import java.awt.Color;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Markdown preview HTML for {@code ```ddot} fences. The Markdown plugin's
- * default fence renderer (lexer-based) misses the role-aware coloring our
- * {@link com.calpano.ddot.highlighting.DdotHighlightAnnotator} adds in the
- * editor — subjects, predicates, objects, metadata, commands. This renderer
- * reproduces that role assignment line-by-line and emits classed spans, so the
- * preview matches what users see while editing.
+ * Role-classed body HTML for ddot fence content. Lives here because two
+ * things need it:
  *
- * <p>Pulls foreground colors from the active editor color scheme so the
- * preview tracks Light / Darcula / custom themes without hard-coded hexes.
+ * <ul>
+ *   <li>The cross-implementation golden corpus at
+ *       {@code ../ddot.it/test-data/cases/} — every case has
+ *       {@code expected.body.html} that this renderer must produce
+ *       byte-for-byte. The Ruby renderer ({@code ddot-render.rb}) is
+ *       canonical; this Java is mirror.</li>
+ *   <li>{@code DdotPreviewBrowserExtension}'s shipped JS — its line-by-line
+ *       role-assignment logic is a port of {@link #renderBody}, and we keep
+ *       this Java implementation as the executable spec the goldens lock down.
+ *       Any change here must land in {@code ddot-preview.js} too.</li>
+ * </ul>
+ *
+ * <p>Pure functions, no IDE dependencies — usable from plain unit tests.
+ *
+ * <p>This class previously also implemented
+ * {@code org.intellij.plugins.markdown.extensions.CodeFenceGeneratingProvider}
+ * to emit Markdown-preview HTML directly. That interface is
+ * {@code @ApiStatus.Internal} and Marketplace rejects plugins that use it,
+ * so the preview path moved to a {@code MarkdownBrowserPreviewExtension} that
+ * post-processes the default fence output in JS — see
+ * {@code DdotPreviewBrowserExtension}.
  */
-public final class DdotMarkdownPreviewRenderer implements CodeFenceGeneratingProvider {
+public final class DdotMarkdownPreviewRenderer {
 
-    private static final Set<String> ALIASES = Set.of("ddot", "ddot.it", "ddotit");
+    private DdotMarkdownPreviewRenderer() {}
+
     private static final Pattern SEP = Pattern.compile("\\.{4}|\\.{2}");
     private static final Set<String> COMMAND_TOKENS = Set.of("!!");
     // `!!` is shorthand for `ddot.it/`; both directive forms are equivalent.
@@ -39,22 +47,6 @@ public final class DdotMarkdownPreviewRenderer implements CodeFenceGeneratingPro
 
     private static boolean isOff(String s) { return OFF.equals(s) || OFF_SHORT.equals(s); }
     private static boolean isOn(String s)  { return ON.equals(s)  || ON_SHORT.equals(s);  }
-
-    @Override
-    public boolean isApplicable(@NotNull String language) {
-        return ALIASES.contains(language.toLowerCase(Locale.ROOT));
-    }
-
-    @Override
-    public @NotNull String generateHtml(@NotNull String language, @NotNull String raw, @NotNull ASTNode node) {
-        // The Markdown plugin already wraps the result in <pre><code>…</code></pre>,
-        // so we emit only the inner span-coloured content. Adding our own <pre>
-        // produced a visible "block-in-block" nesting in the preview.
-        StringBuilder out = new StringBuilder(raw.length() * 4);
-        out.append(styleBlock());
-        renderBody(raw, out);
-        return out.toString();
-    }
 
     /**
      * Body-only HTML — role-classed span markup, no {@code <style>} or
@@ -231,25 +223,5 @@ public final class DdotMarkdownPreviewRenderer implements CodeFenceGeneratingPro
             }
         }
         return b.toString();
-    }
-
-    private static String styleBlock() {
-        EditorColorsScheme scheme = EditorColorsManager.getInstance().getGlobalScheme();
-        return "<style>"
-                + ".ddot-subject{color:" + hex(scheme, DdotSyntaxHighlighter.SUBJECT, "#871094") + ";}"
-                + ".ddot-predicate{color:" + hex(scheme, DdotSyntaxHighlighter.PREDICATE, "#1750EB") + ";}"
-                + ".ddot-object{color:" + hex(scheme, DdotSyntaxHighlighter.OBJECT, "#067D17") + ";}"
-                + ".ddot-meta,.ddot-meta-sep{color:" + hex(scheme, DdotSyntaxHighlighter.METADATA, "#8C8C8C") + ";font-style:italic;}"
-                + ".ddot-command{color:" + hex(scheme, DdotSyntaxHighlighter.COMMAND, "#871094") + ";font-weight:bold;}"
-                + ".ddot-sep{color:" + hex(scheme, DdotSyntaxHighlighter.SEPARATOR, "#707070") + ";}"
-                + ".ddot-inactive,.ddot-directive{color:#8c8c8c;font-style:italic;opacity:0.7;}"
-                + "</style>";
-    }
-
-    private static String hex(EditorColorsScheme scheme, TextAttributesKey key, String fallback) {
-        TextAttributes attrs = scheme.getAttributes(key);
-        Color c = attrs == null ? null : attrs.getForegroundColor();
-        if (c == null) return fallback;
-        return String.format("#%06x", c.getRGB() & 0xFFFFFF);
     }
 }

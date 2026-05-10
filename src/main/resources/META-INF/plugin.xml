@@ -7,7 +7,7 @@
          ============================================================ -->
     <id>com.calpano.ddot</id>
     <name>ddot.it</name>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
     <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
 
     <!-- IDE compatibility range. Matches pom.xml `intellij.version=2024.2`.
@@ -38,6 +38,28 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.1.1</h3>
+        <ul>
+            <li>Marketplace compliance: removed all uses of internal Markdown
+                plugin APIs that blocked the 0.1.0 listing.
+                <ul>
+                    <li>Markdown preview: <code>```ddot</code> fences are now
+                        coloured client-side by a stylesheet and JS injected
+                        via the public <code>browserPreviewExtensionProvider</code>
+                        extension point, replacing the previous
+                        <code>fenceGeneratingProvider</code>
+                        (<code>@ApiStatus.Internal</code>) integration. Visual
+                        result is identical; the colours no longer track the
+                        editor colour scheme dynamically (CSS can't read it),
+                        so they're now static defaults tuned for both Light
+                        and Darcula.</li>
+                    <li>Fence language provider: dropped the
+                        <code>getInfoStringForLanguage</code> override
+                        (also internal). The default <code>null</code> return
+                        covers it; no user-visible flow exercised this hook.</li>
+                </ul>
+            </li>
+        </ul>
         <h3>0.1.0</h3>
         <ul>
             <li>AsciiDoc preview support for ddot blocks. New Tools menu action

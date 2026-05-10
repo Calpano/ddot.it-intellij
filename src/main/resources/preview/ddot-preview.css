@@ -1,0 +1,21 @@
+/*
+ * Role colors for ddot fences in the Markdown preview.
+ *
+ * These match the fallback hexes the old Java styleBlock() emitted when the
+ * editor color scheme couldn't be queried. We can't read EditorColorsScheme
+ * from CSS, so the preview no longer tracks Light/Darcula automatically;
+ * the colors below are tuned for both themes (no pure black/white).
+ *
+ * Class names mirror DdotMarkdownPreviewRenderer's roleClass(): subject,
+ * predicate, object, meta(-sep), command, sep, inactive, directive.
+ */
+
+.ddot-subject   { color: #871094; }
+.ddot-predicate { color: #1750EB; }
+.ddot-object    { color: #067D17; }
+.ddot-meta,
+.ddot-meta-sep  { color: #8C8C8C; font-style: italic; }
+.ddot-command   { color: #871094; font-weight: bold; }
+.ddot-sep       { color: #707070; }
+.ddot-inactive,
+.ddot-directive { color: #8C8C8C; font-style: italic; opacity: 0.7; }
