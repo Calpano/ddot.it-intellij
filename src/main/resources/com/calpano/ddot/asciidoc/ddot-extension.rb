@@ -148,6 +148,9 @@ module DdotIt
       def replace_in(parent)
         return unless parent.respond_to?(:blocks) && parent.blocks
         parent.blocks.each_with_index do |block, idx|
+          # Description lists expose `.blocks` as an array of [terms, description]
+          # pairs (plain Arrays, not AbstractBlock), so guard the walk.
+          next unless block.is_a?(::Asciidoctor::AbstractBlock)
           if ddot_source_block?(block) && !@rouge_active
             parent.blocks[idx] = DdotIt::AsciidoctorExtensions.render_pass_block(
               parent, block.source,
@@ -159,7 +162,8 @@ module DdotIt
       end
 
       def ddot_source_block?(block)
-        block.context == :listing &&
+        block.is_a?(::Asciidoctor::AbstractBlock) &&
+          block.context == :listing &&
           block.style == 'source' &&
           DDOT_LANGUAGES.include?(block.attr('language'))
       end

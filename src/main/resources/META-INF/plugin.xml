@@ -7,7 +7,7 @@
          ============================================================ -->
     <id>com.calpano.ddot</id>
     <name>ddot.it</name>
-    <version>0.1.1</version>
+    <version>0.1.2</version>
     <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
 
     <!-- IDE compatibility range. Matches pom.xml `intellij.version=2024.2`.
@@ -38,6 +38,18 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.1.2</h3>
+        <ul>
+            <li>AsciiDoc preview: fixed a <code>NoMethodError: undefined
+                method 'context' for #&lt;Array&gt;</code> that aborted
+                rendering for any document containing a description list
+                (<code>term::</code>). The Treeprocessor that rewrites
+                <code>[source,ddot]</code> blocks now skips non-block
+                children when walking the document tree (dlist entries
+                expose their items as <code>[terms, description]</code>
+                arrays rather than <code>AbstractBlock</code>
+                instances).</li>
+        </ul>
         <h3>0.1.1</h3>
         <ul>
             <li>Marketplace compliance: removed all uses of internal Markdown
