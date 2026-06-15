@@ -7,6 +7,7 @@ import com.calpano.ddot.psi.DdotMetadata;
 import com.calpano.ddot.psi.DdotOffRegions;
 import com.calpano.ddot.psi.DdotPsiUtil;
 import com.calpano.ddot.psi.DdotRole;
+import com.calpano.ddot.psi.DdotTypes;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;
 import com.intellij.lang.annotation.HighlightSeverity;
@@ -15,6 +16,8 @@ import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.TokenType;
+import com.intellij.psi.tree.IElementType;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
@@ -41,6 +44,7 @@ public final class DdotHighlightAnnotator implements Annotator {
     public void annotate(@NotNull PsiElement element, @NotNull AnnotationHolder holder) {
         if (element instanceof DdotLine line) {
             dimIfInactive(line, holder);
+            warnIfIncomplete(line, holder);
             return;
         }
         if (element instanceof DdotEntity entity) {
@@ -50,16 +54,42 @@ public final class DdotHighlightAnnotator implements Annotator {
         }
     }
 
-    private static void dimIfInactive(DdotLine line, AnnotationHolder holder) {
+    /**
+     * Flag triple-body lines whose object slot is empty — e.g. {@code s ..p..}
+     * or {@code ..p..} alone on a line. These parse to nothing in the event
+     * stream (the exporter silently drops them), which is a footgun.
+     */
+    private static void warnIfIncomplete(DdotLine line, AnnotationHolder holder) {
+        if (isInactive(line)) return;
+        PsiElement lastBody = null;
+        PsiElement lastSep = null;
+        for (PsiElement child = line.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child instanceof DdotMetadata) break;
+            IElementType t = child.getNode().getElementType();
+            if (t == DdotTypes.COMMA_COMMA) break;
+            if (t == TokenType.WHITE_SPACE) continue;
+            lastBody = child;
+            if (t == DdotTypes.DOT_DOT || t == DdotTypes.DOT_DOT_DOT_DOT) lastSep = child;
+        }
+        if (lastSep != null && lastBody == lastSep) {
+            holder.newAnnotation(HighlightSeverity.WARNING, "Incomplete ddot.it triple: object is missing")
+                    .range(lastSep)
+                    .create();
+        }
+    }
+
+    private static boolean isInactive(@NotNull DdotLine line) {
         PsiFile psi = line.getContainingFile();
-        if (!(psi instanceof DdotFile file)) return;
+        if (!(psi instanceof DdotFile file)) return false;
         Document doc = PsiDocumentManager.getInstance(file.getProject()).getDocument(file);
-        if (doc == null) return;
+        if (doc == null) return false;
         DdotOffRegions.Result regions = DdotOffRegions.regionsFor(file);
         int lineIdx = doc.getLineNumber(line.getTextRange().getStartOffset());
-        if (regions.isInactive(lineIdx)) {
-            paint(holder, line, DdotSyntaxHighlighter.INACTIVE);
-        }
+        return regions.isInactive(lineIdx);
+    }
+
+    private static void dimIfInactive(DdotLine line, AnnotationHolder holder) {
+        if (isInactive(line)) paint(holder, line, DdotSyntaxHighlighter.INACTIVE);
     }
 
     private static void highlightEntity(DdotEntity entity, AnnotationHolder holder) {

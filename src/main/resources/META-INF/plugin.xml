@@ -7,7 +7,7 @@
          ============================================================ -->
     <id>com.calpano.ddot</id>
     <name>ddot.it</name>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
     <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
 
     <!-- IDE compatibility range. Matches pom.xml `intellij.version=2024.2`.
@@ -30,7 +30,9 @@
             <li>Find Usages (Alt+F7) on any entity.</li>
             <li>Live templates: <code>ddot-typed</code>, <code>ddot-link</code>,
                 <code>ddot-property</code>, <code>ddot-continue</code>, <code>ddot-meta</code>.</li>
-            <li>Tools menu: <i>Format Document</i>, <i>Export as JSON</i> — emits JSONL
+            <li>Tools menu: <i>Format Document</i>, <i>To Full Triples</i> (expand
+                continuation lines so every line is self-contained),
+                <i>Export as JSON</i> — emits JSONL
                 events matching the
                 <a href="https://ddot.it/developer-guide.html#events">ddot.it event spec</a>
                 next to the source file.</li>
@@ -38,6 +40,27 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.1.3</h3>
+        <ul>
+            <li><b>Connected JSON (CJ) → ddot.it conversion.</b> Right-click a
+                <code>*.cj.json</code> file in the Project view — or use
+                Tools &gt; ddot.it &gt; <i>Convert Connected JSON (CJ) to
+                ddot.it</i> — to generate a sibling <code>.ddot</code> file.
+                The translation is graphinout's canonical CJ-to-ddot.it
+                mapping.</li>
+            <li><code>*.cj.json</code> files are now recognised as a dedicated
+                <i>CJ JSON</i> file type backed by the bundled JSON language,
+                so they get JSON syntax highlighting, structure and
+                completion.</li>
+            <li>New Tools &gt; ddot.it action <i>To Full Triples</i>: expand
+                continuation lines by repeating the inherited subject so every
+                line becomes a self-contained triple (metadata blocks and
+                <code>ddot.it/off</code> regions are left untouched).</li>
+            <li>The editor now warns on an incomplete triple whose object slot
+                is empty (e.g. <code>s ..p..</code>), which the event export
+                would otherwise drop silently.</li>
+            <li>Added Marketplace plugin icons.</li>
+        </ul>
         <h3>0.1.2</h3>
         <ul>
             <li>AsciiDoc preview: fixed a <code>NoMethodError: undefined
@@ -139,6 +162,11 @@
 
     <depends>com.intellij.modules.platform</depends>
 
+    <!-- Bundled JSON module — present in every IntelliJ-based IDE. Required
+         because CjJsonFileType delegates to com.intellij.json.JsonLanguage to
+         give *.cj.json files full JSON support. -->
+    <depends>com.intellij.modules.json</depends>
+
     <!-- ============================================================
          Optional integrations — load only when the host plugin is
          installed. Each config-file registers an extension that lets
@@ -162,6 +190,16 @@
                 fieldName="INSTANCE"
                 language="ddot.it"
                 extensions="ddot"/>
+
+        <!-- Claim the compound *.cj.json name pattern for the bundled JSON
+             language. `patterns` (a glob) is required here rather than
+             `extensions`, which would only match the trailing `json` segment. -->
+        <fileType
+                name="CJ JSON"
+                implementationClass="com.calpano.ddot.CjJsonFileType"
+                fieldName="INSTANCE"
+                language="JSON"
+                patterns="*.cj.json"/>
 
         <lang.parserDefinition
                 language="ddot.it"
@@ -240,6 +278,20 @@
                     class="com.calpano.ddot.actions.FormatAction"
                     text="Format Document"
                     description="Format the current ddot.it document"/>
+            <action
+                    id="Ddot.ToFullTriples"
+                    class="com.calpano.ddot.actions.ToFullTriplesAction"
+                    text="To Full Triples"
+                    description="Expand continuation lines by repeating the inherited subject, so every line is a self-contained triple"/>
+            <!-- Also added to the project-view right-click menu; the action shows
+                 only for *.cj.json files (it checks the selected file at update()). -->
+            <action
+                    id="Ddot.ConvertCjToDdot"
+                    class="com.calpano.ddot.actions.ConvertCjToDdotAction"
+                    text="Convert Connected JSON (CJ) to ddot.it"
+                    description="Convert the selected *.cj.json file to a sibling .ddot file using graphinout's CJ-to-ddot.it mapping">
+                <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            </action>
             <action
                     id="Ddot.ExportJson"
                     class="com.calpano.ddot.actions.ExportJsonAction"

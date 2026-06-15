@@ -7,7 +7,7 @@
 
     <groupId>com.calpano.ddot</groupId>
     <artifactId>ddot.it-intellij</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
     <packaging>jar</packaging>
 
     <name>ddot.it IntelliJ Plugin</name>
@@ -40,6 +40,11 @@
 
         <!-- IntelliJ IDEA Community baseline. Update to retarget. -->
         <intellij.version>2024.2</intellij.version>
+
+        <!-- graphinout: provides the canonical Connected JSON (CJ) -> ddot.it mapping
+             (com.graphinout.base.cj.document.CjDocuments + reader-ddot's DDotOutput).
+             reader-ddot pulls in `base` and the whole conversion stack transitively. -->
+        <graphinout.version>0.1.14</graphinout.version>
         <idea.lib.dir>${project.build.directory}/idea-lib</idea.lib.dir>
         <verifier.version>1.402</verifier.version>
         <verifier.ide.path>/Applications/IntelliJ IDEA.app/Contents</verifier.ide.path>
@@ -66,6 +71,25 @@
     </repositories>
 
     <!--
+        Force one consistent jackson version across the graphinout stack. graphinout
+        pins jackson-annotations to 2.20 (foundation-jvm) while jackson-databind floats
+        to 2.21.2; databind 2.21 references com.fasterxml.jackson.annotation.JsonSerializeAs
+        which only exists in annotations 2.21, so the mismatch crashes ObjectMapper init
+        with ClassNotFoundException. The BOM aligns annotations/core/databind to 2.21.2.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>2.21.2</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!--
         Every dependency below is the unpacked IntelliJ platform's jars. The unpack
         runs at `initialize` phase, before dependency resolution kicks in for `compile`,
         so on a fresh checkout `mvn package` works in one step. After a `mvn clean`,
@@ -84,6 +108,33 @@
             <artifactId>junit</artifactId>
             <version>4.13.2</version>
             <scope>test</scope>
+        </dependency>
+
+        <!--
+            Connected JSON -> ddot.it conversion. Real (non-system) Maven dependency:
+            its classes + transitives (jackson, guava, joni, json-schema-validator, …)
+            are bundled into the plugin jar by the maven-shade-plugin below, with the
+            IDE-clashing libraries relocated. slf4j-api is excluded from the shaded jar
+            (the IntelliJ platform supplies the binding).
+        -->
+        <dependency>
+            <groupId>com.graphinout</groupId>
+            <artifactId>reader-ddot</artifactId>
+            <version>${graphinout.version}</version>
+            <exclusions>
+                <!--
+                    foundation-emulation ships STRIPPED-DOWN copies of third-party
+                    classes (e.g. a jackson JsonIdentityInfo without resolver()/
+                    generator()) for j2cl/GWT. On the JVM they shadow the real
+                    libraries and cause NoSuchMethodError. foundation-jvm excludes
+                    it for the same reason; the real jackson-annotations comes in
+                    via base/foundation-jvm.
+                -->
+                <exclusion>
+                    <groupId>com.graphinout</groupId>
+                    <artifactId>foundation-emulation</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>annotations</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/annotations.jar</systemPath></dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>app-client</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/app-client.jar</systemPath></dependency>
@@ -125,6 +176,10 @@
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.platform.vcs.log.impl</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.platform.vcs.log.impl.jar</systemPath></dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.smart.update</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.smart.update.jar</systemPath></dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>intellij.xml.xmlbeans</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/intellij.xml.xmlbeans.jar</systemPath></dependency>
+        <!-- Bundled JSON plugin jar (plugins/json/lib/json.jar), unpacked into idea-lib.
+             Provides com.intellij.json.JsonLanguage / JsonFileType for CjJsonFileType.
+             Compile-time only; the runtime jar comes from the user's IDE. -->
+        <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>json</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/json.jar</systemPath></dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>jps-model</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/jps-model.jar</systemPath></dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>jsch-agent</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/jsch-agent.jar</systemPath></dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>junit4</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/junit4.jar</systemPath></dependency>
@@ -204,7 +259,7 @@
                                           fence info strings (`ddot`, `ddot.it`, `ddotit`) to DdotLanguage.
                                           Compile-time only; the runtime jar comes from the user's IDE.
                                     -->
-                                    <includes>lib/*.jar,lib/modules/*.jar,plugins/markdown/lib/markdown.jar</includes>
+                                    <includes>lib/*.jar,lib/modules/*.jar,plugins/markdown/lib/markdown.jar,plugins/json/lib/json.jar</includes>
                                     <fileMappers>
                                         <org.codehaus.plexus.components.io.filemappers.FlattenFileMapper/>
                                     </fileMappers>
@@ -244,6 +299,87 @@
                 </configuration>
             </plugin>
 
+            <!--
+                Bundle graphinout + its transitives into the plugin jar. The libraries
+                the IntelliJ platform also ships (guava, jackson, commons-io) are
+                RELOCATED so the plugin uses graphinout's own versions instead of the
+                IDE's older ones; slf4j-api is dropped entirely so logging routes
+                through the platform's binding (graphinout's logback was demoted to
+                test scope upstream, so it never reaches here). Libraries the platform
+                does NOT ship (joni, json-schema-validator, elemental2, …) are bundled
+                as-is — no conflict to avoid.
+
+                Runs in `package` after maven-jar-plugin (declared above) and before
+                maven-assembly-plugin (declared below), so the assembly zips the
+                shaded jar.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                            <artifactSet>
+                                <excludes>
+                                    <!-- Provided by the IntelliJ platform; never bundle. -->
+                                    <exclude>org.slf4j:slf4j-api</exclude>
+                                    <!-- System-scoped IDE jars (belt-and-suspenders; shade skips system scope). -->
+                                    <exclude>com.jetbrains.intellij.local:*</exclude>
+                                </excludes>
+                            </artifactSet>
+                            <relocations>
+                                <relocation>
+                                    <pattern>com.google.common</pattern>
+                                    <shadedPattern>com.calpano.ddot.shaded.com.google.common</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.google.thirdparty</pattern>
+                                    <shadedPattern>com.calpano.ddot.shaded.com.google.thirdparty</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.fasterxml.jackson</pattern>
+                                    <shadedPattern>com.calpano.ddot.shaded.com.fasterxml.jackson</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache.commons.io</pattern>
+                                    <shadedPattern>com.calpano.ddot.shaded.org.apache.commons.io</shadedPattern>
+                                </relocation>
+                            </relocations>
+                            <transformers>
+                                <!-- Merge (and relocate) META-INF/services so jackson module SPI keeps working. -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                        <!--
+                                            Drop multi-release versioned classes. shade does not relocate
+                                            them consistently (it leaves them under the original package
+                                            path while rewriting references), and since the shaded jar's
+                                            manifest is NOT marked Multi-Release the JVM never loads them
+                                            anyway — it uses the relocated Java-8 base classes, which are
+                                            complete. Keeping them only produces phantom NoSuchFieldError
+                                            findings in the plugin verifier (jackson's FastDoubleParser).
+                                        -->
+                                        <exclude>META-INF/versions/**</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -276,12 +412,17 @@
         <profile>
             <id>verify</id>
             <dependencies>
+                <!-- test scope (not runtime) so the maven-shade-plugin does NOT try to
+                     bundle this fat verifier jar into the plugin. Declared only so Maven
+                     downloads it to the local repo; exec:exec below runs it from there in
+                     an isolated JVM (NOT exec:java — in-process would mix the verifier's
+                     own jackson with the plugin's shaded graphinout jackson and crash). -->
                 <dependency>
                     <groupId>org.jetbrains.intellij.plugins</groupId>
                     <artifactId>verifier-cli</artifactId>
                     <version>${verifier.version}</version>
                     <classifier>all</classifier>
-                    <scope>runtime</scope>
+                    <scope>test</scope>
                 </dependency>
             </dependencies>
             <build>
@@ -294,10 +435,15 @@
                             <execution>
                                 <id>verify-plugin</id>
                                 <phase>verify</phase>
-                                <goals><goal>java</goal></goals>
+                                <goals><goal>exec</goal></goals>
                                 <configuration>
-                                    <mainClass>com.jetbrains.pluginverifier.PluginVerifierMain</mainClass>
+                                    <executable>java</executable>
+                                    <!-- Isolated classpath: ONLY the self-contained verifier
+                                         "all" jar, never the project's dependencies. -->
                                     <arguments>
+                                        <argument>-cp</argument>
+                                        <argument>${settings.localRepository}/org/jetbrains/intellij/plugins/verifier-cli/${verifier.version}/verifier-cli-${verifier.version}-all.jar</argument>
+                                        <argument>com.jetbrains.pluginverifier.PluginVerifierMain</argument>
                                         <argument>check-plugin</argument>
                                         <argument>${project.build.directory}/${project.artifactId}-${project.version}.zip</argument>
                                         <argument>${verifier.ide.path}</argument>
