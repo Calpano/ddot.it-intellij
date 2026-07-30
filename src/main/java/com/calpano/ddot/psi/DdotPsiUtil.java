@@ -73,18 +73,26 @@ public final class DdotPsiUtil {
     }
 
     /**
-     * True iff the entity sits on a line that actually opens a triple — i.e. the line
-     * contains at least one {@code ..} or {@code ....} separator. Used to suppress
-     * role-based behavior (highlighting, structure view) on free-form text lines like
-     * titles or section headers, where every word lexes as a slot-0 "entity" but isn't
-     * really part of any triple.
+     * True iff the entity sits on a line that actually opens a triple. This is the
+     * line GATE of the Highlighting How-To (§D5): a line is a ddot.it triple only
+     * when it carries a complete operator skeleton — <em>two</em> {@code ..} (DT2)
+     * or one {@code ....} / {@code .. ..} (the untyped operator). A lone {@code ..}
+     * in prose does not qualify, so titles, section headers and sentences like
+     * {@code A lone .. in prose.} get no role-based behavior (highlighting,
+     * structure view).
+     * <p>Only the main part of the line is consulted; the meta part after
+     * {@code ,,} has its own separators and cannot gate the line by itself.
      */
     public static boolean isOnTripleLine(@NotNull DdotEntity entity) {
         DdotLine line = PsiTreeUtil.getParentOfType(entity, DdotLine.class);
         if (line == null) return false;
+        int dt2 = 0;
         for (PsiElement child = line.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child instanceof DdotMetadata) break;
             var t = child.getNode().getElementType();
-            if (t == DdotTypes.DOT_DOT || t == DdotTypes.DOT_DOT_DOT_DOT) return true;
+            if (t == DdotTypes.COMMA_COMMA) break;
+            if (t == DdotTypes.DOT_DOT_DOT_DOT) return true;
+            if (t == DdotTypes.DOT_DOT && ++dt2 == 2) return true;
         }
         return false;
     }

@@ -8,9 +8,14 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Hand-written, single-state lexer for the ddot.it grammar.
- * <p>The grammar has only four kinds of separators ({@code ..}, {@code ....},
- * {@code ,,}, {@code ::}) plus whitespace, newlines and runs of "word" characters.
- * Single dots, commas and colons are part of words (URLs and the like).
+ * <p>The grammar has four kinds of separators ({@code ..}, {@code ....},
+ * {@code ,,}, {@code ;;}) plus whitespace, newlines and runs of "word"
+ * characters. Per the Parse Spec's tokenization rule, symbol characters group
+ * into <em>maximal runs</em> and a run is a separator only at its exact
+ * special length: 2 or 4 dots, 2 commas, 2 semicolons. Every other run —
+ * a single dot, an ellipsis {@code ...}, five dots, {@code ,,,} — is ordinary
+ * text and stays inside a {@code WORD} (so {@code U.S.A.}, {@code Node.js}
+ * and {@code Wait... what?} carry no ddot.it separators).
  */
 public final class DdotLexer extends LexerBase {
     private CharSequence buffer = "";
@@ -87,48 +92,50 @@ public final class DdotLexer extends LexerBase {
             return;
         }
 
-        if (c == '.' && peekRel(1) == '.') {
-            if (peekRel(2) == '.' && peekRel(3) == '.') {
-                currentOffset += 4;
-                tokenType = DdotTypes.DOT_DOT_DOT_DOT;
-            } else {
-                currentOffset += 2;
-                tokenType = DdotTypes.DOT_DOT;
+        // Exact-run separator semantics (Parse Spec, "Tokenization rule"):
+        // a maximal run of the same symbol character is a separator only at
+        // its exact special length; any other run length is text.
+        if (c == '.' || c == ',' || c == ';') {
+            int run = runLength(currentOffset, c);
+            IElementType special = specialFor(c, run);
+            if (special != null) {
+                currentOffset += run;
+                tokenType = special;
+                tokenEnd = currentOffset;
+                return;
             }
-            tokenEnd = currentOffset;
-            return;
+            // Not a special run — falls through into the word below.
         }
 
-        if (c == ',' && peekRel(1) == ',') {
-            currentOffset += 2;
-            tokenType = DdotTypes.COMMA_COMMA;
-            tokenEnd = currentOffset;
-            return;
-        }
-
-        if (c == ':' && peekRel(1) == ':') {
-            currentOffset += 2;
-            tokenType = DdotTypes.COLON_COLON;
-            tokenEnd = currentOffset;
-            return;
-        }
-
-        // Word: consume until next separator or whitespace.
+        // Word: consume until whitespace or a separator-length symbol run.
         while (currentOffset < endOffset) {
             char cc = buffer.charAt(currentOffset);
             if (cc == '\n' || cc == ' ' || cc == '\t' || cc == '\r') break;
-            if (cc == '.' && peekRel(1) == '.') break;
-            if (cc == ',' && peekRel(1) == ',') break;
-            if (cc == ':' && peekRel(1) == ':') break;
+            if (cc == '.' || cc == ',' || cc == ';') {
+                int run = runLength(currentOffset, cc);
+                if (specialFor(cc, run) != null) break;
+                currentOffset += run;   // non-special run is word content
+                continue;
+            }
             currentOffset++;
         }
         tokenType = DdotTypes.WORD;
         tokenEnd = currentOffset;
     }
 
-    private char peekRel(int offset) {
-        int p = currentOffset + offset;
-        if (p >= endOffset) return '\0';
-        return buffer.charAt(p);
+    /** Separator type for a maximal run of {@code run} × {@code c}, or {@code null} if it is text. */
+    private static IElementType specialFor(char c, int run) {
+        if (c == '.' && run == 2) return DdotTypes.DOT_DOT;
+        if (c == '.' && run == 4) return DdotTypes.DOT_DOT_DOT_DOT;
+        if (c == ',' && run == 2) return DdotTypes.COMMA_COMMA;
+        if (c == ';' && run == 2) return DdotTypes.SEMI_SEMI;
+        return null;
+    }
+
+    /** Length of the maximal run of {@code c} starting at {@code from}. */
+    private int runLength(int from, char c) {
+        int p = from;
+        while (p < endOffset && buffer.charAt(p) == c) p++;
+        return p - from;
     }
 }

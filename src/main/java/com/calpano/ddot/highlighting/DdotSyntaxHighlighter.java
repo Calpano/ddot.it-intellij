@@ -12,10 +12,14 @@ import org.jetbrains.annotations.NotNull;
 public final class DdotSyntaxHighlighter extends SyntaxHighlighterBase {
     public static final TextAttributesKey SEPARATOR = TextAttributesKey.createTextAttributesKey(
             "DDOT_SEPARATOR", DefaultLanguageHighlighterColors.OPERATION_SIGN);
+    /**
+     * {@code ,,} / {@code ;;} and the {@code ..} inside the meta part. Metadata is
+     * <em>first-class content</em>, not a comment (Highlight Spec: metadata shares
+     * the {@code keyword.operator.*} root with the main triple), so this falls back
+     * to an operator key, not {@code LINE_COMMENT}.
+     */
     public static final TextAttributesKey METADATA_SEPARATOR = TextAttributesKey.createTextAttributesKey(
-            "DDOT_METADATA_SEPARATOR", DefaultLanguageHighlighterColors.LINE_COMMENT);
-    public static final TextAttributesKey COLON_SEPARATOR = TextAttributesKey.createTextAttributesKey(
-            "DDOT_COLON_SEPARATOR", DefaultLanguageHighlighterColors.OPERATION_SIGN);
+            "DDOT_METADATA_SEPARATOR", DefaultLanguageHighlighterColors.OPERATION_SIGN);
     public static final TextAttributesKey ENTITY = TextAttributesKey.createTextAttributesKey(
             "DDOT_ENTITY", DefaultLanguageHighlighterColors.IDENTIFIER);
     public static final TextAttributesKey BAD_CHAR = TextAttributesKey.createTextAttributesKey(
@@ -36,10 +40,33 @@ public final class DdotSyntaxHighlighter extends SyntaxHighlighterBase {
             "DDOT_PREDICATE", DefaultLanguageHighlighterColors.NUMBER);
     public static final TextAttributesKey OBJECT = TextAttributesKey.createTextAttributesKey(
             "DDOT_OBJECT", DefaultLanguageHighlighterColors.KEYWORD);
+    /**
+     * Base key for the meta part. Metadata renders as first-class content, not a
+     * comment (Highlight Spec: it shares the {@code entity.name.*} root with the
+     * main triple) — hence an entity-like fallback instead of {@code LINE_COMMENT}.
+     */
     public static final TextAttributesKey METADATA = TextAttributesKey.createTextAttributesKey(
-            "DDOT_METADATA", DefaultLanguageHighlighterColors.LINE_COMMENT);
+            "DDOT_METADATA", DefaultLanguageHighlighterColors.INSTANCE_FIELD);
+    /** Meta relation ({@code ..mr..} after {@code ,,}); falls back to {@link #METADATA}. */
+    public static final TextAttributesKey META_RELATION = TextAttributesKey.createTextAttributesKey(
+            "DDOT_META_RELATION", METADATA);
+    /** Meta object; falls back to {@link #METADATA}. */
+    public static final TextAttributesKey META_OBJECT = TextAttributesKey.createTextAttributesKey(
+            "DDOT_META_OBJECT", METADATA);
+    /** Free-form meta text after {@code ,,}; falls back to {@link #METADATA}. */
+    public static final TextAttributesKey META_TEXT = TextAttributesKey.createTextAttributesKey(
+            "DDOT_META_TEXT", METADATA);
     public static final TextAttributesKey COMMAND = TextAttributesKey.createTextAttributesKey(
             "DDOT_COMMAND", DefaultLanguageHighlighterColors.STATIC_FIELD);
+    /** A command's {@code ?query} / {@code #fragment} part (e.g. {@code ?end=} of {@code !!block}). */
+    public static final TextAttributesKey COMMAND_PARAM = TextAttributesKey.createTextAttributesKey(
+            "DDOT_COMMAND_PARAM", COMMAND);
+    /** The {@code ?end=} marker value and its matching terminator line — meant to read as a pair. */
+    public static final TextAttributesKey BLOCK_END = TextAttributesKey.createTextAttributesKey(
+            "DDOT_BLOCK_END", DefaultLanguageHighlighterColors.CONSTANT);
+    /** Body lines of a {@code !!block} — verbatim, string-literal-like. */
+    public static final TextAttributesKey VERBATIM = TextAttributesKey.createTextAttributesKey(
+            "DDOT_VERBATIM", DefaultLanguageHighlighterColors.STRING);
 
     /**
      * Foreground-only dimming applied to lines inside a {@code ddot.it/off … /on}
@@ -52,7 +79,6 @@ public final class DdotSyntaxHighlighter extends SyntaxHighlighterBase {
 
     private static final TextAttributesKey[] SEPARATOR_KEYS = {SEPARATOR};
     private static final TextAttributesKey[] METADATA_SEPARATOR_KEYS = {METADATA_SEPARATOR};
-    private static final TextAttributesKey[] COLON_SEPARATOR_KEYS = {COLON_SEPARATOR};
     private static final TextAttributesKey[] ENTITY_KEYS = {ENTITY};
     private static final TextAttributesKey[] BAD_CHAR_KEYS = {BAD_CHAR};
     private static final TextAttributesKey[] EMPTY_KEYS = new TextAttributesKey[0];
@@ -65,8 +91,7 @@ public final class DdotSyntaxHighlighter extends SyntaxHighlighterBase {
     @Override
     public TextAttributesKey @NotNull [] getTokenHighlights(IElementType tokenType) {
         if (tokenType == DdotTypes.DOT_DOT || tokenType == DdotTypes.DOT_DOT_DOT_DOT) return SEPARATOR_KEYS;
-        if (tokenType == DdotTypes.COMMA_COMMA) return METADATA_SEPARATOR_KEYS;
-        if (tokenType == DdotTypes.COLON_COLON) return COLON_SEPARATOR_KEYS;
+        if (tokenType == DdotTypes.COMMA_COMMA || tokenType == DdotTypes.SEMI_SEMI) return METADATA_SEPARATOR_KEYS;
         if (tokenType == DdotTypes.WORD) return ENTITY_KEYS;
         if (tokenType == DdotTypes.BAD_CHAR) return BAD_CHAR_KEYS;
         return EMPTY_KEYS;

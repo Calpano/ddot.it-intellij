@@ -1,5 +1,6 @@
 package com.calpano.ddot.psi;
 
+import com.calpano.ddot.highlighting.DdotTokenizer;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiDocumentManager;
@@ -10,21 +11,32 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Single-pass analyzer for {@code ddot.it/off} … {@code ddot.it/on} directives.
- * <p>The spec says these commands toggle whether the reader processes lines.
- * We adopt the line-level reading: a line whose trimmed text equals
- * {@code ddot.it/off} flips processing off; {@code ddot.it/on} flips it back.
- * The directive lines themselves are also inactive.
- * <p>Used by the annotator (dim inactive lines), folding builder (collapse off
- * spans), structure view (skip subjects on inactive lines) and the exporter
- * (omit triples on inactive lines).
+ * Analyzer for {@code !!off} … {@code !!on} directives (Parse Spec, "Pre-Parse
+ * Commands").
+ * <p>Recognition is delegated to {@link DdotTokenizer}, the corpus-pinned
+ * reference tokenizer, so all four command spellings ({@code !!off},
+ * {@code ddot.it/off}, {@code http://ddot.it/off}, {@code https://ddot.it/off};
+ * same for {@code on}) are found <em>anywhere</em> on a line — the common case
+ * is inside a host-language comment such as {@code <!-- ddot.it/off -->}. The
+ * command name is matched exactly ({@code !!office} is not {@code !!off}), and
+ * commands inside a {@code !!block} body are inert.
+ * <p>The directive line itself is <em>not</em> part of the excluded region: it
+ * is flagged in {@link Result#directives()} only, while {@link Result#inactive()}
+ * covers just the lines strictly between {@code off} and {@code on}. The
+ * {@link Span}s handed to the folding builder still include the directive lines
+ * so the whole construct folds as one unit.
+ * <p>Used by the annotator (dim excluded lines), folding builder (collapse off
+ * spans) and structure view (skip subjects on excluded lines).
  */
 public final class DdotOffRegions {
 
-    private static final String OFF = "ddot.it/off";
-    private static final String ON = "ddot.it/on";
+    private static final Set<String> OFF_COMMANDS = Set.of(
+            "!!off", "ddot.it/off", "http://ddot.it/off", "https://ddot.it/off");
+    private static final Set<String> ON_COMMANDS = Set.of(
+            "!!on", "ddot.it/on", "http://ddot.it/on", "https://ddot.it/on");
 
     /** A contiguous inclusive line range covering one off span (directives included). */
     public record Span(int startLine, int endLine, @NotNull TextRange range) {}
@@ -33,6 +45,7 @@ public final class DdotOffRegions {
                          @NotNull BitSet directives,
                          @NotNull List<Span> spans) {
 
+        /** True for lines strictly between an off and its on directive — not the directives themselves. */
         public boolean isInactive(int line) {
             return inactive.get(line);
         }
@@ -56,97 +69,62 @@ public final class DdotOffRegions {
     }
 
     public static @NotNull Result analyze(@NotNull Document doc) {
-        int lc = doc.getLineCount();
-        BitSet inactive = new BitSet(lc);
-        BitSet directives = new BitSet(lc);
-        List<Span> spans = new ArrayList<>();
-        CharSequence cs = doc.getCharsSequence();
-
-        int spanStart = -1;
-        int spanStartOffset = -1;
-        for (int line = 0; line < lc; line++) {
-            int s = doc.getLineStartOffset(line);
-            int e = doc.getLineEndOffset(line);
-            String t = trimmed(cs, s, e);
-            if (OFF.equals(t)) {
-                directives.set(line);
-                inactive.set(line);
-                if (spanStart < 0) {
-                    spanStart = line;
-                    spanStartOffset = s;
-                }
-            } else if (ON.equals(t)) {
-                directives.set(line);
-                inactive.set(line);
-                if (spanStart >= 0) {
-                    spans.add(new Span(spanStart, line, new TextRange(spanStartOffset, e)));
-                    spanStart = -1;
-                    spanStartOffset = -1;
-                }
-            } else if (spanStart >= 0) {
-                inactive.set(line);
-            }
-        }
-        if (spanStart >= 0) {
-            int last = lc - 1;
-            int endOffset = doc.getLineEndOffset(last);
-            spans.add(new Span(spanStart, last, new TextRange(spanStartOffset, endOffset)));
-        }
-        return new Result(inactive, directives, spans);
+        // IntelliJ documents always use \n, so the text analysis lines up.
+        return analyze(doc.getCharsSequence().toString());
     }
 
-    /**
-     * Text-only fallback used when no Document is available (e.g. the JSONL
-     * exporter operating on a raw string). Splits on {@code \n}; results align
-     * with the Document API on normalized buffers.
-     */
     public static @NotNull Result analyze(@NotNull String text) {
-        BitSet inactive = new BitSet();
-        BitSet directives = new BitSet();
+        String[] lines = text.split("\n", -1);
+        int lineCount = lines.length;
+        int[] lineStart = new int[lineCount];
+        for (int i = 1; i < lineCount; i++) {
+            lineStart[i] = lineStart[i - 1] + lines[i - 1].length() + 1;
+        }
+
+        // Which lines carry an off/on command token? The tokenizer already
+        // implements the recognition rules (all four spellings, anywhere on the
+        // line, exact name match, inert inside !!block bodies): a toggling
+        // command surfaces as a `command` token whose text is exactly the
+        // command spelling, group-matched without any ?query/#fragment suffix.
+        BitSet offCmd = new BitSet(lineCount);
+        BitSet onCmd = new BitSet(lineCount);
+        for (DdotTokenizer.Token t : DdotTokenizer.tokenize(text)) {
+            if (!"command".equals(t.token())) continue;
+            // Exact-run rule for the `!!` prefix (EM2): in `!!!off` the bang run
+            // has length 3, so it is text, not a command. The tokenizer's regex
+            // lacks this lookbehind, so guard here on the raw line.
+            if (t.text().startsWith("!!") && t.start() > 0
+                    && lines[t.line()].charAt(t.start() - 1) == '!') continue;
+            if (OFF_COMMANDS.contains(t.text())) offCmd.set(t.line());
+            else if (ON_COMMANDS.contains(t.text())) onCmd.set(t.line());
+        }
+
+        BitSet inactive = new BitSet(lineCount);
+        BitSet directives = new BitSet(lineCount);
         List<Span> spans = new ArrayList<>();
 
+        boolean off = false;
         int spanStart = -1;
-        int spanStartOffset = -1;
-        int line = 0;
-        int i = 0;
-        int len = text.length();
-        while (i <= len) {
-            int j = i;
-            while (j < len && text.charAt(j) != '\n') j++;
-            String t = text.substring(i, j).trim();
-            if (OFF.equals(t)) {
+        for (int line = 0; line < lineCount; line++) {
+            if (!off && offCmd.get(line)) {
                 directives.set(line);
-                inactive.set(line);
-                if (spanStart < 0) {
-                    spanStart = line;
-                    spanStartOffset = i;
-                }
-            } else if (ON.equals(t)) {
+                off = true;
+                spanStart = line;
+            } else if (off && onCmd.get(line)) {
                 directives.set(line);
-                inactive.set(line);
-                if (spanStart >= 0) {
-                    spans.add(new Span(spanStart, line, new TextRange(spanStartOffset, j)));
-                    spanStart = -1;
-                    spanStartOffset = -1;
-                }
-            } else if (spanStart >= 0) {
+                off = false;
+                spans.add(new Span(spanStart, line, new TextRange(
+                        lineStart[spanStart], lineStart[line] + lines[line].length())));
+                spanStart = -1;
+            } else if (off) {
                 inactive.set(line);
             }
-            line++;
-            if (j == len) break;
-            i = j + 1;
         }
-        if (spanStart >= 0) {
-            spans.add(new Span(spanStart, line - 1, new TextRange(spanStartOffset, len)));
+        if (off) {
+            int last = lineCount - 1;
+            spans.add(new Span(spanStart, last, new TextRange(
+                    lineStart[spanStart], lineStart[last] + lines[last].length())));
         }
         return new Result(inactive, directives, spans);
-    }
-
-    private static String trimmed(CharSequence cs, int start, int end) {
-        int s = start;
-        int e = end;
-        while (s < e && Character.isWhitespace(cs.charAt(s))) s++;
-        while (e > s && Character.isWhitespace(cs.charAt(e - 1))) e--;
-        return cs.subSequence(s, e).toString();
     }
 }

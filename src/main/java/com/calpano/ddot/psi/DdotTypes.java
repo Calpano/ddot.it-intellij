@@ -14,7 +14,8 @@ public interface DdotTypes {
     IElementType DOT_DOT = new DdotTokenType("DOT_DOT");
     IElementType DOT_DOT_DOT_DOT = new DdotTokenType("DOT_DOT_DOT_DOT");
     IElementType COMMA_COMMA = new DdotTokenType("COMMA_COMMA");
-    IElementType COLON_COLON = new DdotTokenType("COLON_COLON");
+    /** {@code ;;} — SC2 (Parse Spec "Token Sequences"): separates inline meta pairs. */
+    IElementType SEMI_SEMI = new DdotTokenType("SEMI_SEMI");
     IElementType NEWLINE = new DdotTokenType("NEWLINE");
     IElementType BAD_CHAR = new DdotTokenType("BAD_CHAR");
 
