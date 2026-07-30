@@ -1,5 +1,6 @@
 package com.calpano.ddot.highlighting;
 
+import com.calpano.ddot.it.token.DdotTokenizer;
 import com.calpano.ddot.psi.DdotFile;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;

@@ -1,7 +1,7 @@
 package com.calpano.ddot.completion;
 
-import com.calpano.ddot.highlighting.DdotTokenizer;
-import com.calpano.ddot.psi.DdotRole;
+import com.calpano.ddot.it.token.DdotTokenizer;
+import com.calpano.ddot.it.token.DdotRole;
 import com.intellij.openapi.editor.Document;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

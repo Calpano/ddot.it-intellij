@@ -1,5 +1,6 @@
 package com.calpano.ddot.psi;
 
+import com.calpano.ddot.it.token.DdotRole;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;

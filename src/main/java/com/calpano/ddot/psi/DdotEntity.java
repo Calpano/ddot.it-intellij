@@ -1,5 +1,6 @@
 package com.calpano.ddot.psi;
 
+import com.calpano.ddot.it.token.DdotRole;
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
 import com.intellij.psi.ElementManipulators;

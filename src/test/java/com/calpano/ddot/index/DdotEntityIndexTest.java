@@ -3,7 +3,7 @@ package com.calpano.ddot.index;
 import com.calpano.ddot.completion.DdotKgraphService;
 import com.calpano.ddot.completion.DdotRecentRelations;
 import com.calpano.ddot.psi.DdotFile;
-import com.calpano.ddot.psi.DdotRole;
+import com.calpano.ddot.it.token.DdotRole;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;

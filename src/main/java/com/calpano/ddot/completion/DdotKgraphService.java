@@ -1,7 +1,7 @@
 package com.calpano.ddot.completion;
 
 import com.calpano.ddot.index.DdotEmbeds;
-import com.calpano.ddot.index.DdotTriple;
+import com.calpano.ddot.it.event.DdotTriple;
 import com.calpano.ddot.index.DdotTripleIndex;
 import com.calpano.ddot.it.kserver.base.Kendpoint;
 import com.calpano.ddot.it.kserver.impl.mem.Kedge;

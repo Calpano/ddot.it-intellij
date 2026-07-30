@@ -4,7 +4,7 @@ import com.calpano.ddot.psi.DdotEntity;
 import com.calpano.ddot.psi.DdotFile;
 import com.calpano.ddot.psi.DdotOffRegions;
 import com.calpano.ddot.psi.DdotPsiUtil;
-import com.calpano.ddot.psi.DdotRole;
+import com.calpano.ddot.it.token.DdotRole;
 import com.intellij.ide.projectView.PresentationData;
 import com.intellij.ide.structureView.StructureViewTreeElement;
 import com.intellij.ide.util.treeView.smartTree.TreeElement;

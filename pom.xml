@@ -207,6 +207,22 @@
         </dependency>
 
         <!--
+            The zero-dependency ddot.it core: the corpus-pinned tokenizer
+            (com.calpano.ddot.it.token) and the triple-event model + exporter
+            (com.calpano.ddot.it.event), shared verbatim with graphinout's reader-ddot.
+            Highlighting, completion, both file indexes and the JSON export action all
+            call it directly, so it is declared EXPLICITLY here and not merely inherited
+            through the ddot.it-javalib facade below. It brings only jspecify
+            (annotations, enforced by maven-enforcer in that module) and needs no
+            relocation in the shaded jar — nothing in it can clash with the platform.
+        -->
+        <dependency>
+            <groupId>com.calpano.ddot.it</groupId>
+            <artifactId>ddot-core</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+
+        <!--
             ddot.it knowledge model (Kbase/Kgraph). Backs project-wide, graph-aware
             completion queries (see spec-models.adoc). Bundled+shaded like reader-ddot;
             shares the same graphinout 0.2.1 stack. test-scoped logback/junit/truth in
@@ -873,6 +889,14 @@
                                 </excludes>
                             </artifactSet>
                             <relocations>
+                                <!--
+                                    Only THIRD-PARTY packages are relocated. Our own
+                                    com.calpano.* — including com.calpano.ddot.it.token /
+                                    .event from ddot-core — is bundled verbatim: it has no
+                                    dependency the platform could clash with (jspecify only,
+                                    annotations), and relocating it would rename the very
+                                    classes the plugin's own source imports.
+                                -->
                                 <relocation>
                                     <pattern>com.google.common</pattern>
                                     <shadedPattern>com.calpano.ddot.shaded.com.google.common</shadedPattern>

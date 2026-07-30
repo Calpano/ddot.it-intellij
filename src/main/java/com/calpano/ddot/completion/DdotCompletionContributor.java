@@ -2,7 +2,7 @@ package com.calpano.ddot.completion;
 
 import com.calpano.ddot.index.DdotEntityIndex;
 import com.calpano.ddot.psi.DdotFile;
-import com.calpano.ddot.psi.DdotRole;
+import com.calpano.ddot.it.token.DdotRole;
 import com.intellij.codeInsight.AutoPopupController;
 import com.intellij.codeInsight.completion.CompletionContributor;
 import com.intellij.codeInsight.completion.CompletionParameters;

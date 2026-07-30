@@ -2,7 +2,7 @@ package com.calpano.ddot.completion;
 
 import com.calpano.ddot.completion.DdotContext.DocState;
 import com.calpano.ddot.completion.DdotContext.State;
-import com.calpano.ddot.psi.DdotRole;
+import com.calpano.ddot.it.token.DdotRole;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

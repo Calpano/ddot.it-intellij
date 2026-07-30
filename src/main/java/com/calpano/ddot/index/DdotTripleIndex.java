@@ -1,7 +1,8 @@
 package com.calpano.ddot.index;
 
-import com.calpano.ddot.export.DdotEvent;
-import com.calpano.ddot.export.DdotEventExporter;
+import com.calpano.ddot.it.event.DdotEvent;
+import com.calpano.ddot.it.event.DdotEventExporter;
+import com.calpano.ddot.it.event.DdotTriple;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.search.GlobalSearchScope;

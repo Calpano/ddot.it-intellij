@@ -1,10 +1,10 @@
 package com.calpano.ddot.index;
 
 import com.calpano.ddot.completion.DdotRecentRelations;
-import com.calpano.ddot.highlighting.DdotTokenizer;
+import com.calpano.ddot.it.token.DdotTokenizer;
 import com.calpano.ddot.psi.DdotFile;
 import com.calpano.ddot.psi.DdotPsiUtil;
-import com.calpano.ddot.psi.DdotRole;
+import com.calpano.ddot.it.token.DdotRole;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;

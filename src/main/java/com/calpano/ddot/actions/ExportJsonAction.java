@@ -1,7 +1,7 @@
 package com.calpano.ddot.actions;
 
-import com.calpano.ddot.export.DdotEvent;
-import com.calpano.ddot.export.DdotEventExporter;
+import com.calpano.ddot.it.event.DdotEvent;
+import com.calpano.ddot.it.event.DdotEventExporter;
 import com.calpano.ddot.psi.DdotFile;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;

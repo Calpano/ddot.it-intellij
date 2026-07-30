@@ -1,7 +1,7 @@
 package com.calpano.ddot.preview;
 
-import com.calpano.ddot.export.DdotEventExporter;
-import com.calpano.ddot.highlighting.DdotTokenizer;
+import com.calpano.ddot.it.event.DdotEventExporter;
+import com.calpano.ddot.it.token.DdotTokenizer;
 import org.junit.Test;
 
 import java.io.IOException;

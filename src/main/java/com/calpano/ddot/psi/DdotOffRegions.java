@@ -1,6 +1,6 @@
 package com.calpano.ddot.psi;
 
-import com.calpano.ddot.highlighting.DdotTokenizer;
+import com.calpano.ddot.it.token.DdotTokenizer;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiDocumentManager;
