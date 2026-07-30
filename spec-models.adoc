@@ -1,0 +1,404 @@
+= ddot.it data models: completion index vs. knowledge base
+:toc: macro
+:toclevels: 2
+
+Two in-memory/​on-disk models represent ddot.it data in this ecosystem. They
+sit at opposite ends of a spectrum — a flat, persisted projection for editor
+features vs. a rich, in-memory graph for meaning — and are *not*
+interchangeable. This document contrasts them feature by feature and records
+where each belongs.
+
+toc::[]
+
+== The two models
+
+=== Model A — `DdotEntityIndex` (IntelliJ `FileBasedIndex`)
+
+`com.calpano.ddot.index.DdotEntityIndex` in this plugin. A persisted,
+incremental, project-wide *vocabulary* index backing completion. It maps a role
+tag (`S`/`P`/`O`) to the set of subject / predicate / object names found in each
+file, extracted from `.ddot`, Markdown (`+```ddot+`) and AsciiDoc
+(`[source,ddot]`) by `DdotEmbeds` and classified by the canonical
+`DdotTokenizer`. Queried via `FileBasedIndex.processValues`; completion overlays
+the current file's live PSI on top (the index lags unsaved edits) and ranks
+candidates recently-used → in-file → in-project.
+
+=== Model B — javalib knowledge base (`IKbase` / `IKgraph` / `Kgraph`)
+
+`com.calpano.ddot.it.kserver.*` in `ddot.it-javalib`. An in-memory knowledge
+graph: `Knode`s (with stable ids) and `Kedge` n-ary hyperedges (endpoints with
+direction + per-endpoint type), multi-entry language-tagged `Klabel`s, type
+edges, node merging and inference, a slot-based pattern matcher
+(`Constant`/`Variable`/`OneOf`/`Prefix`/`Initials`) and a JSON query engine. An
+`IKbase` groups named graphs with a document-level `@context` namespace map.
+Built from sources by `Source2Kgraph` / `Source2TripleEvents`.
+
+== Feature comparison
+
+[cols="1a,2a,2a", options="header"]
+|===
+| Feature | `DdotEntityIndex` (FileBasedIndex) | javalib KB (`IKgraph`/`IKbase`)
+
+| Primary purpose
+| Completion vocabulary lookup
+| Knowledge representation, query & inference
+
+| Data shape
+| Flat: role tag → `Set<String>` of names
+| Graph: nodes + n-ary hyperedges
+
+| Entity identity
+| None — bare strings
+| `Knode` with stable `id` (dedup, reference)
+
+| Triple linkage
+| Lost — S/P/O kept as three independent string sets
+| Preserved — `Kedge` endpoints (direction + per-endpoint type)
+
+| N-ary / hyperedges
+| No
+| Yes (`Kendpoint` list per edge)
+
+| Labels / i18n
+| No
+| `Klabel` multi-entry with language (ISO codes)
+
+| Type system
+| No
+| Type edges (`HAS_TYPE`), `findNodesByType`, add/remove type
+
+| Namespaces / multi-graph
+| No (one flat project vocabulary)
+| `IKbase` = named graphs + `@context` URI-prefix map
+
+| Query model
+| Exact "all names of role R" + plain case-insensitive prefix
+| Pattern matching (`Constant`/`Variable`/`OneOf`/`Prefix`/`Initials`) + JSON query engine
+
+| Inference
+| No
+| Yes (`TripleEventInferred`, node merging)
+
+| Mutability
+| Read-only (platform builds it)
+| Fully mutable (add/remove/merge nodes, edges, types)
+
+| Dedup
+| Names within a set
+| Structural edge equality + node identity
+
+| Provenance
+| File granularity (which file a value came from)
+| `(file:` URI + line`)` recorded on the `Kedge` *and both endpoint nodes* by `TripleEvent2Kgraph`; the predicate node is left provenance-free (shared vocab survives source removal). Deduped by `(uri, line)`; merge accumulates every asserting source. From files the URI is a real `file:` URI (`FileResourceAddress`); inferred triples carry none
+
+| Persistence
+| *Yes* — on disk in IDE caches; survives restart
+| *No* — pure in-memory; rebuilt each run
+
+| Incrementality
+| *Yes* — only changed files reindex, VFS-driven
+| Per-source update is a first-class primitive (`removeBySource(uri)` + re-read + `inference()`), but there is no VFS trigger or persistence — the application drives it
+
+| Memory footprint
+| Small in RAM — disk-backed, queried lazily
+| Whole base held in RAM
+
+| Scale ceiling
+| Large projects (lazy, disk-backed)
+| What fits in memory
+
+| Freshness vs. unsaved edits
+| Lags edits → overlay live PSI for the current file
+| Reflects whatever was loaded
+
+| Concurrency
+| Platform-managed; queryable off-EDT (smart mode); throws in dumb mode
+| Plain objects; caller owns threading
+
+| Source parsing
+| `DdotTokenizer` / `DdotEventExporter` (pure, no deps)
+| `Source2Kgraph` / `Source2TripleEvents` (full pipeline)
+
+| Serialization
+| Custom binary `DataExternalizer`
+| jackson / CJ JSON document
+
+| External dependencies
+| None beyond the IntelliJ platform
+| graphinout (`foundation-pure`, `base`) + jackson
+
+| Sweet spot
+| IDE completion / find-usages style lookups
+| Semantic modeling, reasoning, cross-document queries
+|===
+
+== Conclusion
+
+The two models are complementary, not redundant. The index is a flat, persisted
+*projection* optimized for "give me names fast across the project"; the KB is a
+rich, in-memory, mutable *graph* optimized for meaning (identity, types,
+inference, queries).
+
+For IDE completion the index wins on every axis that matters — persistence,
+incrementality, footprint, zero extra dependencies — so the plugin should *not*
+adopt the KB model as its completion backing store. The KB's strengths (triple
+linkage, types, inference) are precisely the things completion does not need.
+
+The one exception worth borrowing is the KB's *matching* (not its model): the
+`Initials` matcher (e.g. `wa` → `works at`) and case-insensitive `Prefix`
+matcher would improve completion UX. These are a few lines of logic that can be
+ported into the completion prefix matcher without taking on the dependency.
+
+== Path to reuse: what the KB would need to back completion
+
+The KB does not need to become _smarter_ to serve IDE completion — it needs the
+*plumbing* that `FileBasedIndex` already gives the string index for free.
+Roughly everything in the list below is something the platform's indexing
+provides out of the box, which is why bolting it onto the KB amounts to
+re-implementing that infrastructure.
+
+[cols="1a,2a,2a", options="header"]
+|===
+| Capability | Why completion / the IDE demands it | What the KB lacks today
+
+| Per-file decomposition
+| `FileBasedIndex` is inherently per-file; you must build just one file's subgraph and drop/replace it
+| `Source2Kgraph` merges everything (node-identity merge + inference entangles files); no per-file unit
+
+| Incremental invalidation
+| Editing one `.md` must not re-parse the project
+| The KB *has* the primitive: `removeBySource(uri)` drops a file's contribution (edges + endpoint provenance, deleting items left with no source) and returns a `RemoveBySourceResult`. What's missing is the *trigger* — wiring it to fire on a `FileBasedIndex` change — plus persistence (rebuild the in-memory graph on startup)
+
+| Persistence
+| Completion must work instantly after restart, not re-parse every file
+| Pure in-memory, rebuilt each run; JSON serializes a whole base, not index-shaped fragments
+
+| Compact serialization
+| Index values round-trip through a binary `DataExternalizer`
+| Only jackson / CJ JSON of the full graph
+
+| Lazy / bounded footprint
+| A whole-project `Kgraph` in RAM is heavy; the index is disk-backed and queried lazily
+| Holds the entire base in memory
+
+| Off-EDT + dumb-mode safety
+| Completion queries run on a background thread while indexing may be in progress
+| Plain mutable objects; caller owns threading; no "indexes not ready" contract
+
+| Project-scope awareness
+| Must index content roots, skip excluded / library files, react to VFS events
+| No notion of project, scope, or VFS lifecycle
+
+| Role / label fast path
+| Hot query is "all predicate labels, prefix P"
+| `Prefix`/`Initials` matchers scan in-memory edges — fine only if the whole graph is resident (reintroducing the footprint problem), else it needs its own inverted label index
+
+| Embedded-host extraction
+| ddot lives in `.md` / `.adoc`, not just `.ddot`
+| `Source2*` parses ddot text; would need `DdotEmbeds`-style fence / listing extraction (reusable)
+
+| Active-buffer overlay
+| Suggest names from the unsaved file being typed in
+| Reflects only what was loaded
+
+| Dependency diet
+| Must shade into the plugin jar with graphinout + jackson relocated; it is a `1.0-SNAPSHOT`
+| Drags the graphinout + jackson stack; not a released artifact
+|===
+
+=== Integration shapes
+
+Rather than teach the KB to be an index, wrap it with one. Three options, in
+increasing order of effort:
+
+. *KB as the index value.* Make a per-file `Kgraph` `DataExternalizer`-serializable
+  and store it as the `FileBasedIndex` value; completion reconstructs / merges
+  per-file subgraphs at query time. The KB only needs per-file construction +
+  binary (de)serialization + a merge op; persistence and incrementality stay with
+  the platform. Cost: heavier values and per-query object reconstruction vs. string
+  sets.
+. *KB lazily built on top of the lean string index.* Keep `DdotEntityIndex` for the
+  hot path; materialize a `Kgraph` (whole project or a neighborhood) only when a
+  richer feature asks. Needs an IDE-managed service + a builder fed by the index or
+  by re-reading files.
+. *KB as a full project service with its own snapshot persistence + VFS-driven
+  deltas.* Most work; justified only if many features want project-wide graph
+  semantics.
+
+=== When it becomes worth it
+
+For *plain name completion* none of this buys anything over the string sets — you
+would add persistence machinery only to land back at the same suggestions. The KB
+earns its place when completion needs what only a graph can express:
+
+* predicate → object association ("objects previously used with relation R"),
+* subject → predicate suggestions ("relations used on this subject"),
+* type-aware completion ("objects of type `Person`").
+
+These are cross-row _joins_ that a flat per-file index does awkwardly (composite
+keys, read-all-values) and a graph does natively. That is the threshold: the day
+completion becomes context- or type-aware, *Option 1* (KB-as-index-value) or
+*Option 2* (lazy KB over the lean index) becomes worth it. Until then, the string
+index plus the borrowed `Initials` / `Prefix` matcher is the better fit.
+
+== Integration architecture: KB queries over per-file indexing
+
+The target: enable complex, project-wide queries for completion while keeping
+IntelliJ's per-file, incremental re-indexing. The two control models invert at
+exactly one clean seam, so they compose by *nesting*.
+
+=== Two control flows
+
+* *FileBasedIndex — pull (inversion of control).* The platform owns the loop and
+  calls `DataIndexer.map(FileContent) → Map<Key,Value>`, expecting a *pure,
+  per-file, serializable* return. Hard rule: the indexer reads *only* from the
+  supplied `FileContent` — never the disk, never other files. That is what makes
+  per-file re-indexing correct and incremental.
+* *javalib — push (SAX-style).* A driver calls a handler chain:
+  `ISourceReader.readTo(address, handler)` → `handler.onLine(line, n)` →
+  `Source2TripleEvents` parses ddot and emits triples → forwarded downstream to
+  `TripleEvent2Kgraph`, which mutates a `Kgraph`.
+
+=== Do not reuse `ISourceReader`; drive the handler chain
+
+`ISourceReader.readTo(address, handler)` reads the resource *by address, doing its
+own I/O* — which violates the indexer purity rule (the `FileContent` may be an
+unsaved in-memory version; re-reading disk gives a stale/different answer and
+breaks incrementality). The reusable piece is the *handler chain*
+(`Source2TripleEvents` — the canonical ddot line→triple parser — and
+`TripleEvent2Kgraph`), not the reader. Inside the indexer *you* become the driver:
+
+[source,java]
+----
+// inside DdotEntityIndex.map(FileContent fc) — you drive the push pipeline
+TripleCollector sink = new TripleCollector();
+Source2TripleEvents h = new Source2TripleEvents(sink);   // fresh per call — no shared state
+ISourceResourceAddress addr =
+        FileResourceAddress.of(URI.create(fc.getFile().getUrl()));   // file: URI
+h.sourceStart();
+h.sourceResourceStart(addr);
+for ((line, n) : DdotEmbeds.extract(ext, fc.getContentAsText())) {   // md/adoc → chunks, keep line offsets
+    h.onLine(line, n);
+}
+h.sourceResourceEnd(addr);
+h.sourceEnd();
+return serialize(sink.triples());   // per-file, serializable value
+----
+
+A `FileContent`-backed `ISourceReader` is possible (close over the text, replay it
+as `onLine` events) but then `readTo`'s by-address I/O and `resourceData` are
+vestigial — not worth it; drive the handler directly.
+
+=== The nesting seam
+
+----
+Platform ──pull──▶ DataIndexer.map(FileContent)
+                        │  (you drive, synchronously, within one call)
+                        └─push──▶ Source2TripleEvents ─▶ collector / per-file Kgraph
+                        ◀──────── per-file triples (serializable)
+----
+
+The push pipeline lives entirely inside one `map()` call. It composes cleanly
+*iff* three invariants hold:
+
+. *Drive from `FileContent`, not disk* — purity / correctness.
+. *Fresh handler instances per call* — `Source2TripleEvents` holds per-instance
+  state (`activeSubject`, `kgraph()`); never share it, and it must not reach IDE /
+  global services.
+. *Keep only a per-file result* — stop at the triple list (or a per-file
+  subgraph). *Inference and cross-file node-merge must NOT run in the indexer* —
+  they are global, non-deterministic per file, and unserializable.
+
+=== The query layer (where complex queries live)
+
+Cross-file queries cannot live in the indexer (per-file). They run at query time,
+one layer up:
+
+----
+Completion ─▶ Project KB service ─▶ reads per-file triples from the index (by scope)
+                                  ─▶ assembles / updates a transient Kgraph
+                                  ─▶ pattern-match / joins / inference   ← the KB's value
+----
+
+Incrementality is preserved by the KB's own per-source primitive: on a
+`FileBasedIndex` change for file `F`, the service calls `kgraph.removeBySource(F)`
+(drops `F`'s edges + endpoint provenance; predicate vocab survives), re-adds from
+the new per-file index value, then re-runs `kgraph.inference()`. No full rebuild —
+this marries IntelliJ's per-file re-indexing with the KB query model. Queries use
+the K-API directly: SPO `pattern` (incl. `Prefix`/`Initials`), conjunctive `query`
+with shared `Variable` bindings (the joins), and JSON-data predicates.
+
+NOTE: the mem `Kgraph` synchronizes structural writes but *not* reads, so the
+service must establish a happens-before barrier (publish the updated graph) before
+a completion query reads it.
+
+=== The concrete change this forces
+
+The index *value* must become *triples*, not the current role-separated
+`Set<String>` name sets — joins like "objects used with relation R" or type-aware
+completion need the `(from, type, to)` linkage preserved. So `value =
+List<Triple>` per file (plus line for provenance), assembled into a `Kgraph` at
+query time.
+
+=== Division of labour
+
+[cols="1,2", options="header"]
+|===
+| Layer | Owner
+
+| Per-file extraction + storage (incremental) | IntelliJ `FileBasedIndex`
+| ddot line→triple parsing | javalib `Source2TripleEvents` / `TripleEvent2Kgraph`
+| Cross-file assembly, joins, inference (query time) | KB project service over the index
+|===
+
+What does *not* fit: `ISourceReader`'s disk I/O inside the indexer, and global
+inference / merge at index time — both move out of the per-file step.
+
+=== Realization status
+
+[NOTE]
+====
+*Realized.* The architecture above is implemented and tested in the plugin.
+====
+
+Components, mapping onto the division of labour:
+
+[cols="1a,2a", options="header"]
+|===
+| Component | Role
+
+| `DdotTripleIndex` (`FileBasedIndex`)
+| Per-file full triples (`from, type, to`), extracted by the canonical `DdotEventExporter`. The IntelliJ-owned, persisted, incremental extraction + storage half.
+
+| `DdotKgraphService` (project service)
+| Assembles the per-file triples into a javalib `Kgraph` via `TripleEvent2Kgraph` (file-URL provenance), runs `inference()`, and answers K-API `pattern` queries. The cross-file query half.
+
+| `DdotCompletionContributor`
+| Object-slot completion calls `DdotKgraphService.objectsForRelation`, boosting objects already used with the line's relation.
+|===
+
+Incrementality: a `VFS_CHANGES` listener records changed ddot/Markdown/AsciiDoc
+files; on the next query the service applies per-file deltas with
+`Kgraph.removeBySource(url)` + re-ingest of just that file (drops the old
+contribution, predicate vocab survives), then re-runs `inference()`. The initial
+graph is a full build; thereafter only changed files are reprocessed — IntelliJ's
+per-file re-indexing married to the KB's per-source update.
+
+Graph-backed completion queries (all on `DdotKgraphService`, things a flat index
+cannot answer):
+
+* `objectsForRelation(R)` — objects already linked by relation `R` (and, for a
+  type-asserting relation, the project's known type names across aliases).
+* `objectsOfRelationRange(R)` — objects of the *kind* `R` expects: the types of
+  `R`'s known objects, then every entity of those types. So one `works at Acme`
+  with `Acme is a Company` surfaces all Companies, including ones never linked by
+  `works at`. The object slot offers the union of these two.
+* `relationsForSubjectType(S)` — relations used on entities sharing a type with
+  `S` ("relations appropriate for this kind of thing"), benefiting from subtype
+  inference so supertype relations are included.
+
+Dependency: the plugin now bundles+shades `ddot.it-javalib` and the graphinout
+0.2.1 stack (the plugin's graphinout line was bumped 0.1.14 → 0.2.1-SNAPSHOT to
+match the javalib). Caveat: both are *SNAPSHOTs* and the javalib must be
+`mvn install`-ed from source — before a release these must be pinned to fixed
+versions for a reproducible build.
