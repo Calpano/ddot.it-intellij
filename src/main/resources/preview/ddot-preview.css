@@ -1,21 +1,29 @@
 /*
  * Role colors for ddot fences in the Markdown preview.
  *
- * These match the fallback hexes the old Java styleBlock() emitted when the
- * editor color scheme couldn't be queried. We can't read EditorColorsScheme
- * from CSS, so the preview no longer tracks Light/Darcula automatically;
+ * These match the fallback hexes ddot-render.rb's style_block() emits when
+ * the editor color scheme can't be queried. We can't read EditorColorsScheme
+ * from CSS, so the preview doesn't track Light/Darcula automatically;
  * the colors below are tuned for both themes (no pure black/white).
  *
- * Class names mirror DdotMarkdownPreviewRenderer's roleClass(): subject,
- * predicate, object, meta(-sep), command, sep, inactive, directive.
+ * Class names mirror DdotMarkdownPreviewRenderer's TOKEN_CLASS map.
+ *
+ * Metadata is FIRST-CLASS CONTENT (Highlight Spec: entity.name.* roots
+ * shared with the main triple), NOT comment styling: meta content renders
+ * in normal weight and content colors; only the markers (`,,`, `;;`, `..`)
+ * are subdued. Verbatim `!!block` bodies read as string literals.
  */
 
-.ddot-subject   { color: #871094; }
-.ddot-predicate { color: #1750EB; }
-.ddot-object    { color: #067D17; }
-.ddot-meta,
-.ddot-meta-sep  { color: #8C8C8C; font-style: italic; }
-.ddot-command   { color: #871094; font-weight: bold; }
-.ddot-sep       { color: #707070; }
-.ddot-inactive,
-.ddot-directive { color: #8C8C8C; font-style: italic; opacity: 0.7; }
+.ddot-subject       { color: #871094; }
+.ddot-predicate,
+.ddot-meta-relation { color: #1750EB; }
+.ddot-object,
+.ddot-meta-object,
+.ddot-meta-text     { color: #067D17; }
+.ddot-sep,
+.ddot-meta-sep      { color: #707070; }
+.ddot-command       { color: #871094; font-weight: bold; }
+.ddot-command-param { color: #871094; }
+.ddot-verbatim      { color: #8F5902; }
+.ddot-block-end     { color: #8F5902; font-weight: bold; }
+.ddot-inactive      { color: #8C8C8C; font-style: italic; opacity: 0.7; }

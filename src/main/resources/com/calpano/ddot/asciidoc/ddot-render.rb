@@ -2,43 +2,106 @@
 #
 # Pure-Ruby ddot.it preview renderer. NO Asciidoctor / IntelliJ dependency.
 #
-# Mirrors the role-assignment logic in
-# `com.calpano.ddot.preview.DdotMarkdownPreviewRenderer` so the AsciiDoc
-# preview matches the editor and the Markdown preview.
+# CANONICAL source of the golden corpus's `expected.body.html` files
+# (`../ddot.it/test-data/regenerate-html.rb` runs this file). Two mirrors must
+# produce byte-identical output for every corpus case:
+#   - Java:  com.calpano.ddot.preview.DdotMarkdownPreviewRenderer#body
+#   - JS:    src/main/resources/preview/ddot-preview.js (renderBody)
+# When you change this file, regenerate the corpus and update both mirrors.
+#
+# The line/slot model is a direct port of the corpus-pinned positional
+# tokenizer `com.calpano.ddot.highlighting.DdotTokenizer` (which itself
+# mirrors the TextMate grammar): tokenize each line into
+# {start, end, token} spans, then wrap each span in a role-classed <span>.
+# Normative rules: site/spec/ddot-it-parse.adoc (token counting, the gate,
+# off/on, !!block) and site/spec/ddot-it-highlight.adoc (roles D1-D9).
 #
 # Two callers consume this file:
 #   1. `ddot-extension.rb` — the AsciidoctorJ BlockProcessor that runs inside
 #      the JetBrains AsciiDoc plugin (loaded from `<root>/.asciidoctor/lib/`).
 #   2. `../ddot.it/test-data/regenerate-html.rb` — the golden-test
-#      corpus regeneration script (canonical source of `expected.body.html`
-#      files used by both Java and Ruby renderer tests).
-#
-# Keep the role-assignment rules in sync with DdotMarkdownPreviewRenderer.java.
-# When you change either side, regenerate the corpus and run both test suites.
+#      corpus regeneration script.
 
 module DdotIt
   module Render
-    SEP_RE        = /\.{4}|\.{2}/
-    OFF           = 'ddot.it/off'
-    ON            = 'ddot.it/on'
-    # `!!` is shorthand for `ddot.it/`; both directive forms are equivalent.
-    OFF_SHORT     = '!!off'
-    ON_SHORT      = '!!on'
-    META_TOGGLE   = ',,'
-    COMMAND_TOKEN = '!!'
+    # --- counted tokens (Parse Spec, "Token Sequences") ---------------------
+    # Runs of EXACTLY n, neither preceded nor followed by the same character.
+    # The lookarounds carry the rule: `\.{2}` alone would match the first two
+    # dots of `...`, which the tokenization rule forbids.
+    DT2_SRC  = '(?<!\.)\.{2}(?!\.)'
+    QUAD_SRC = '(?<!\.)(?:\.{4}|\.{2}[ \t]+\.{2})(?!\.)'
+    CM2_SRC  = '(?<!,),,(?!,)'
+    SC2_SRC  = '(?<!;);;(?!;)'
 
-    # Default colour palette mirroring DdotSyntaxHighlighter's IntelliJ
-    # defaults. The editor renderer pulls from the active EditorColorsScheme;
-    # here we have no scheme available (Asciidoctor runs headless inside
-    # JRuby), so we ship sensible Light-theme defaults. Override per-document
-    # via :ddot-color-* attributes from inside .adoc.
+    # A command is recognised by SHAPE (Highlight Spec D6): `!!name`,
+    # `ddot.it/name`, `http(s)://ddot.it/name` with a non-empty name. `!!` is
+    # an EM2 (exactly two `!`), so `!!!off` is not a command prefix. `?` and
+    # `#` do not terminate a command; they introduce its query/fragment.
+    CMD_PREFIX_SRC = '(?:(?:https?://)?ddot\.it/|(?<!!)!!(?!!))'
+    CMD_SRC        = "#{CMD_PREFIX_SRC}[^\\s?#]+(?:\\?[^\\s#]*)?(?:#\\S*)?"
+
+    CMD_ONLY = /\A#{CMD_SRC}\z/
+    # A command nested in field text: preceded by start-of-slot or whitespace.
+    NESTED_CMD = /(?<!\S)#{CMD_SRC}/
+
+    # `!!off` / `!!on` are recognised ANYWHERE on a line (Parse Spec
+    # "pre-parse-recognition") — the common way to write them is inside a host
+    # comment (`<!-- ddot.it/off -->`, `# !!on`). The name is matched exactly:
+    # `(?![^\s?#])` pins it, so `!!office` is not `!!off`.
+    OFF_LINE = /(#{CMD_PREFIX_SRC}off)(?![^\s?#])/
+    ON_LINE  = /(#{CMD_PREFIX_SRC}on)(?![^\s?#])/
+
+    # A `!!block` opener must END its physical line (block-as-field).
+    BLOCK_OPENER = /(#{CMD_PREFIX_SRC}block)(?:(\?end=)(\S+))?[ \t]*$/
+
+    # A line-initial `,,` or `;;` followed by a meta pair continues the
+    # previous logical line as metadata (Parse Spec "block-continuation").
+    META_CONTINUATION = /\A[ \t]*(?:(#{CM2_SRC})|(#{SC2_SRC}))(?=[ \t]+#{DT2_SRC})/
+
+    # QUAD before DT2 so `.. ..` is ONE operator, not two.
+    SIGNIFICANT = /#{QUAD_SRC}|#{DT2_SRC}|#{CM2_SRC}|#{SC2_SRC}/
+
+    # THE GATE (How-To-Highlight D5): a line is ddot.it only when it carries a
+    # complete operator skeleton — two DT2, or one DT4 / `.. ..`. A lone `..`
+    # or an ellipsis in prose stays entirely plain (23-not-a-triple).
+    GATE = /(?:(?<!\.)\.{4}(?!\.)|(?<!\.)\.{2}(?!\.).*(?<!\.)\.{2}(?!\.))/
+
+    # --- token type → CSS class --------------------------------------------
+    TOKEN_CLASS = {
+      'subject'        => 'ddot-subject',
+      'relation'       => 'ddot-predicate',
+      'object'         => 'ddot-object',
+      'doubledot'      => 'ddot-sep',
+      'meta-doubledot' => 'ddot-sep',
+      'meta-delim'     => 'ddot-meta-sep',
+      'meta-separator' => 'ddot-meta-sep',
+      'meta-relation'  => 'ddot-meta-relation',
+      'meta-object'    => 'ddot-meta-object',
+      'meta-text'      => 'ddot-meta-text',
+      'command'        => 'ddot-command',
+      'command-param'  => 'ddot-command-param',
+      'block-end'      => 'ddot-block-end',
+      'excluded'       => 'ddot-inactive',
+      'verbatim'       => 'ddot-verbatim'
+    }.freeze
+
+    # Slots that may carry a nested in-text command span (Highlight Spec D6:
+    # "the command rule is nested inside every field capture").
+    SLOT_TOKENS = %w[subject relation object meta-relation meta-object meta-text].freeze
+
+    # Default colour palette mirroring the plugin's `ddot-preview.css`.
+    # Metadata is FIRST-CLASS CONTENT (Highlight Spec: entity.name.* roots),
+    # not comment-styled: meta content uses content colours, only the markers
+    # (`,,`, `;;`, `..`) are subdued. Override per-document via
+    # :ddot-color-* attributes from inside .adoc.
     DEFAULT_COLORS = {
       subject:   '#871094',
       predicate: '#1750EB',
       object:    '#067D17',
-      meta:      '#8C8C8C',
+      meta:      '#067D17',   # meta content — content colour, NOT grey/italic
       command:   '#871094',
       separator: '#707070',
+      verbatim:  '#8F5902',
       inactive:  '#8C8C8C'
     }.freeze
 
@@ -59,16 +122,20 @@ module DdotIt
       end
 
       def style_block(colors)
+        colors = DEFAULT_COLORS.merge(colors)
         <<~CSS.chomp
           <style>
             .ddot-fence{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
             .ddot-fence .ddot-subject{color:#{colors[:subject]};}
-            .ddot-fence .ddot-predicate{color:#{colors[:predicate]};}
+            .ddot-fence .ddot-predicate,.ddot-fence .ddot-meta-relation{color:#{colors[:predicate]};}
             .ddot-fence .ddot-object{color:#{colors[:object]};}
-            .ddot-fence .ddot-meta,.ddot-fence .ddot-meta-sep{color:#{colors[:meta]};font-style:italic;}
+            .ddot-fence .ddot-meta-object,.ddot-fence .ddot-meta-text{color:#{colors[:meta]};}
             .ddot-fence .ddot-command{color:#{colors[:command]};font-weight:bold;}
-            .ddot-fence .ddot-sep{color:#{colors[:separator]};}
-            .ddot-fence .ddot-inactive,.ddot-fence .ddot-directive{color:#{colors[:inactive]};font-style:italic;opacity:0.7;}
+            .ddot-fence .ddot-command-param{color:#{colors[:command]};}
+            .ddot-fence .ddot-sep,.ddot-fence .ddot-meta-sep{color:#{colors[:separator]};}
+            .ddot-fence .ddot-verbatim{color:#{colors[:verbatim]};}
+            .ddot-fence .ddot-block-end{color:#{colors[:verbatim]};font-weight:bold;}
+            .ddot-fence .ddot-inactive{color:#{colors[:inactive]};font-style:italic;opacity:0.7;}
           </style>
         CSS
       end
@@ -78,129 +145,290 @@ module DdotIt
       def render_body(raw, out)
         body  = raw.end_with?("\n") ? raw[0...-1] : raw
         lines = body.split("\n", -1)
-
-        in_meta_block = false
-        off           = false
-        first_line    = true
-
-        lines.each do |line|
-          out << "\n" unless first_line
-          first_line = false
-
-          trimmed = line.strip
-          if trimmed == OFF || trimmed == OFF_SHORT
-            render_inactive(line, out, directive: true)
-            off = true
-            next
-          end
-          if trimmed == ON || trimmed == ON_SHORT
-            render_inactive(line, out, directive: true)
-            off = false
-            next
-          end
-          if off
-            render_inactive(line, out, directive: false)
-            next
-          end
-          if trimmed == META_TOGGLE
-            render_inline(line, out, 'ddot-meta-sep')
-            in_meta_block = !in_meta_block
-            next
-          end
-          if in_meta_block
-            render_inline(line, out, 'ddot-meta')
-            next
-          end
-
-          render_triple_line(line, out)
+        tokens = tokenize(lines)
+        lines.each_with_index do |line, i|
+          out << "\n" if i > 0
+          render_line(line, tokens[i] || [], out)
         end
       end
 
-      def render_triple_line(line, out)
-        meta_start = line.index(',,')
-        body, tail = if meta_start
-                       [line[0...meta_start], line[meta_start..]]
-                     else
-                       [line, '']
-                     end
+      # --- tokenizer: port of DdotTokenizer#tokenize -----------------------
 
-        lead_end = 0
-        lead_end += 1 while lead_end < body.length && body[lead_end] =~ /\s/
-        out << escape(body[0...lead_end])
-        content = body[lead_end..]
-
-        # Slot starts at 0 (subject); a leading separator on a continuation
-        # line advances it to 1, naturally classing the next segment as the
-        # predicate. Don't pre-set slot=1 — that double-counts the leading
-        # `..` and mis-classes continuation predicates as objects.
-        slot = 0
-        last = 0
-        any  = false
-
-        content.scan(SEP_RE) do |sep|
-          any = true
-          m_start = Regexp.last_match.begin(0)
-          m_end   = Regexp.last_match.end(0)
-          render_segment(content[last...m_start], slot, out)
-          out << %(<span class="ddot-sep">#{escape(sep)}</span>)
-          slot = [slot + (sep.length == 4 ? 2 : 1), 2].min
-          last = m_end
-        end
-
-        trailing = content[last..]
-        if any
-          render_segment(trailing, slot, out)
-        else
-          render_free_form(trailing, out)
-        end
-
-        out << %(<span class="ddot-meta">#{escape(tail)}</span>) unless tail.empty?
+      def tok(s, e, t)
+        { s: s, e: e, t: t }
       end
 
-      def render_segment(segment, slot, out)
+      def add_trimmed(list, line, type)
         s = 0
-        e = segment.length
-        s += 1 while s < e && segment[s] =~ /\s/
-        e -= 1 while e > s && segment[e - 1] =~ /\s/
-        out << escape(segment[0...s]) if s > 0
-        text = segment[s...e]
-        unless text.empty?
-          out << %(<span class="#{role_class(slot, text)}">#{escape(text)}</span>)
-        end
-        out << escape(segment[e..]) if e < segment.length
+        e = line.length
+        s += 1 while s < e && line[s] =~ /\s/
+        e -= 1 while e > s && line[e - 1] =~ /\s/
+        list << tok(s, e, type) if s < e
       end
 
-      def role_class(slot, text)
-        return 'ddot-command' if text.start_with?('ddot.it') || text == COMMAND_TOKEN
-        case [slot, 2].min
-        when 0 then 'ddot-subject'
-        when 1 then 'ddot-predicate'
-        else        'ddot-object'
-        end
+      def starts_with_operator(line)
+        m = SIGNIFICANT.match(line)
+        m && line[0...m.begin(0)].strip.empty?
       end
 
-      def render_free_form(text, out)
-        trimmed = text.strip
-        if trimmed.start_with?('ddot.it') || trimmed == COMMAND_TOKEN
-          s = 0
-          s += 1 while s < text.length && text[s] =~ /\s/
-          e = text.length
-          e -= 1 while e > s && text[e - 1] =~ /\s/
-          out << escape(text[0...s]) if s > 0
-          out << %(<span class="ddot-command">#{escape(text[s...e])}</span>)
-          out << escape(text[e..]) if e < text.length
+      def tokenize(lines)
+        toks = Array.new(lines.length) { [] }
+        off       = false   # inside !!off … !!on
+        verbatim  = false   # inside a !!block body
+        block_end = nil     # custom ?end= marker, nil = blank-line form
+        in_meta   = false   # inside a ,, … ,, block
+
+        lines.each_with_index do |line, i|
+          trimmed = line.strip
+
+          # --- excluded region: inactive, NO role spans --------------------
+          if off
+            if (on = ON_LINE.match(line))
+              toks[i] << tok(on.begin(1), on.end(1), 'command')
+              off = false
+            elsif !trimmed.empty?
+              add_trimmed(toks[i], line, 'excluded')
+            end
+            next
+          end
+          # --- verbatim (!!block body) --------------------------------------
+          if verbatim
+            if block_end
+              if trimmed == block_end
+                toks_add_block_end(toks[i], line)
+                verbatim = false
+                block_end = nil
+              elsif !trimmed.empty?
+                add_trimmed(toks[i], line, 'verbatim')
+              end
+            elsif trimmed.empty?
+              verbatim = false   # blank line ends the unmarked form
+            else
+              add_trimmed(toks[i], line, 'verbatim')
+            end
+            next
+          end
+          if (offm = OFF_LINE.match(line))
+            toks[i] << tok(offm.begin(1), offm.end(1), 'command')
+            off = true
+            in_meta = false
+            next
+          end
+
+          # --- inside a ,, block --------------------------------------------
+          if in_meta
+            if trimmed == ',,'
+              add_trimmed(toks[i], line, 'meta-delim')
+              in_meta = false
+            elsif !trimmed.empty?
+              if SIGNIFICANT.match?(line) && starts_with_operator(line)
+                emit_line(toks[i], line, :meta_start, true)
+              else
+                add_trimmed(toks[i], line, 'meta-text')
+              end
+            end
+            next
+          end
+          next if trimmed.empty?
+
+          # --- a standalone `,,` opens a block for the previous triple ------
+          if trimmed == ',,'
+            add_trimmed(toks[i], line, 'meta-delim')
+            in_meta = true
+            next
+          end
+
+          # --- `,, ..mr.. mo` continues the previous logical line -----------
+          if (mc = META_CONTINUATION.match(line))
+            g = mc[1] ? 1 : 2
+            toks[i] << tok(mc.begin(g), mc.end(g), g == 1 ? 'meta-delim' : 'meta-separator')
+            masked = line[0...mc.end(g)].gsub(/[^ \t]/, ' ') + line[mc.end(g)..]
+            emit_line(toks[i], masked, :meta_start, false)
+            next
+          end
+
+          # --- `!!block` alone on a line = a SUBJECT opener ------------------
+          if (bo = BLOCK_OPENER.match(line)) && line[0...bo.begin(0)].strip.empty?
+            emit_block_opener(toks[i], bo)
+            verbatim = true
+            block_end = bo[3]
+            next
+          end
+
+          # --- the gate ------------------------------------------------------
+          next unless GATE.match?(line)   # NotATriple: no spans at all
+
+          st = emit_line(toks[i], line, :subject, false)
+          if st[:opens_block]
+            verbatim = true
+            block_end = st[:block_end]
+          elsif st[:opens_meta]
+            in_meta = true
+          end
+        end
+        toks
+      end
+
+      def toks_add_block_end(list, line)
+        add_trimmed(list, line, 'block-end')
+      end
+
+      # Emit one line as a sequence of slots and operators, starting in
+      # `phase`. Mirrors the parse automaton: the object may contain `..`,
+      # `;;` separates inline meta pairs only, and a `!!block` that ends the
+      # line opens a verbatim region.
+      def emit_line(list, line, phase, in_block)
+        st = { opens_block: false, opens_meta: false, block_end: nil }
+        last = 0
+        scan = 0
+
+        while (m = SIGNIFICANT.match(line, scan))
+          sep       = m[0]
+          sep_start = m.begin(0)
+          sep_end   = m.end(0)
+          scan      = m.end(0)   # scanning always resumes after the FULL match
+
+          is_quad  = sep.length == 4 || sep.include?(' ') || sep.include?("\t")
+          is_comma = sep == ',,'
+          is_semi  = sep == ';;'
+
+          # Once in an object-ish phase, `..` is content, not a separator.
+          next if !is_comma && !is_semi && (phase == :object || phase == :meta_obj)
+          # `;;` separates inline meta pairs ONLY; inside a `,,` block it is
+          # ordinary content (28-semicolon-in-meta-block).
+          next if is_semi && (in_block || phase != :meta_obj)
+          next if is_comma && phase != :object
+
+          # The relation-closing operator is always a plain `..`, never the
+          # untyped `.. ..` form — otherwise an object starting with `..`
+          # (a relative path) merges with the closing marker (20-object-dotdot).
+          if is_quad && sep.length != 4 && (phase == :relation || phase == :meta_rel)
+            is_quad = false
+            sep     = line[sep_start, 2]
+            sep_end = sep_start + 2
+          end
+
+          # A `!!block` ending the line makes the pending slot a block opener.
+          bo = BLOCK_OPENER.match(line, last)
+          if bo && line[last...bo.begin(0)].strip.empty? && bo.begin(0) < m.begin(0)
+            emit_block_opener(list, bo)
+            st[:opens_block] = true
+            st[:block_end]   = bo[3]
+            return st
+          end
+
+          emit_slot(list, line, last, sep_start, phase)
+          sep_type = if is_comma then 'meta-delim'
+                     elsif is_semi then 'meta-separator'
+                     elsif %i[meta_start meta_rel meta_obj].include?(phase) || in_block
+                       'meta-doubledot'
+                     else
+                       'doubledot'
+                     end
+          list << tok(sep_start, sep_end, sep_type)
+          last = sep_end
+
+          phase = case phase
+                  when :subject    then is_quad ? :object : :relation
+                  when :relation   then :object
+                  when :object     then is_comma ? :meta_start : :object
+                  when :meta_start then is_quad ? :meta_obj : :meta_rel
+                  when :meta_rel   then :meta_obj
+                  when :meta_obj   then is_semi ? :meta_start : :meta_obj
+                  end
+        end
+
+        # Trailing slot, or a block opener with no separator after it.
+        bo = BLOCK_OPENER.match(line, last)
+        if bo && line[last...bo.begin(0)].strip.empty?
+          emit_block_opener(list, bo)
+          st[:opens_block] = true
+          st[:block_end]   = bo[3]
+          return st
+        end
+        if line[last..].strip.empty? && phase == :meta_start
+          st[:opens_meta] = true   # trailing `,,` opened a block
         else
-          out << escape(text)
+          emit_slot(list, line, last, line.length, phase)
+        end
+        st
+      end
+
+      def emit_block_opener(list, bo)
+        list << tok(bo.begin(1), bo.end(1), 'command')
+        if bo[2]
+          list << tok(bo.begin(2), bo.end(2), 'command-param')
+          list << tok(bo.begin(3), bo.end(3), 'block-end')
         end
       end
 
-      def render_inline(line, out, css_class)
-        out << %(<span class="#{css_class}">#{escape(line)}</span>)
+      def emit_slot(list, line, lo, hi, phase)
+        s = lo
+        e = hi
+        s += 1 while s < e && line[s] =~ /\s/
+        e -= 1 while e > s && line[e - 1] =~ /\s/
+        return if s >= e
+
+        text = line[s...e]
+        type = if CMD_ONLY.match?(text)
+                 'command'   # a slot whose whole text is a command IS a command
+               else
+                 case phase
+                 when :subject    then 'subject'
+                 when :relation   then 'relation'
+                 when :object     then 'object'
+                 when :meta_rel   then 'meta-relation'
+                 when :meta_obj   then 'meta-object'
+                 else                  'meta-text'   # :meta_start — text after `,,` with no `..`
+                 end
+               end
+        list << tok(s, e, type)
       end
 
-      def render_inactive(line, out, directive:)
-        css_class = directive ? 'ddot-directive' : 'ddot-inactive'
-        out << %(<span class="#{css_class}">#{escape(line)}</span>)
+      # --- HTML emission ----------------------------------------------------
+
+      def render_line(line, toks, out)
+        pos = 0
+        toks.each do |t|
+          out << escape(line[pos...t[:s]]) if t[:s] > pos
+          render_token(line[t[:s]...t[:e]], t[:t], out)
+          pos = t[:e]
+        end
+        out << escape(line[pos..]) if pos < line.length
+      end
+
+      def render_token(text, type, out)
+        if type == 'command'
+          command_span(text, out)
+        elsif SLOT_TOKENS.include?(type)
+          out << %(<span class="#{TOKEN_CLASS[type]}">)
+          slot_inner(text, out)
+          out << '</span>'
+        else
+          out << %(<span class="#{TOKEN_CLASS[type]}">#{escape(text)}</span>)
+        end
+      end
+
+      # `?query` / `#fragment` render as a nested command-param span.
+      def command_span(text, out)
+        idx = text =~ /[?#]/
+        if idx
+          out << %(<span class="ddot-command">#{escape(text[0...idx])}) \
+              << %(<span class="ddot-command-param">#{escape(text[idx..])}</span></span>)
+        else
+          out << %(<span class="ddot-command">#{escape(text)}</span>)
+        end
+      end
+
+      # Slot content with nested in-text command spans (Highlight Spec D6).
+      def slot_inner(text, out)
+        pos = 0
+        while (m = NESTED_CMD.match(text, pos))
+          out << escape(text[pos...m.begin(0)])
+          command_span(m[0], out)
+          pos = m.end(0)
+        end
+        out << escape(text[pos..])
       end
 
       def escape(s)

@@ -7,6 +7,17 @@
 // (which the cross-impl golden corpus locks down byte-for-byte), and
 // replace the block's inner HTML with role-classed spans.
 //
+// The line/slot model is a faithful port of the corpus-pinned positional
+// tokenizer com.calpano.ddot.highlighting.DdotTokenizer (which mirrors the
+// TextMate grammar): tokenize each line into {start, end, token} spans, then
+// wrap each span in a role-classed <span>. Normative rules:
+// site/spec/ddot-it-parse.adoc (token counting, the gate, off/on, !!block)
+// and site/spec/ddot-it-highlight.adoc (roles D1-D9).
+//
+// Canonical HTML shape: ddot-render.rb (regenerates the golden corpus at
+// ../ddot.it/test-data/cases/*/expected.body.html). This file must produce
+// byte-identical output — `node scripts/test-preview-js.mjs` asserts it.
+//
 // Triggered on DOMContentLoaded (the JCEF preview reloads the document on
 // every Markdown change, so a single pass per load is enough) and as a
 // MutationObserver fallback in case the page mutates content after load.
@@ -14,28 +25,79 @@
 (function () {
   "use strict";
 
-  const SEP_RE = /\.{4}|\.{2}/g;
-  const COMMAND_TOKENS = new Set(["!!"]);
-  const OFF = "ddot.it/off";
-  const ON = "ddot.it/on";
-  const OFF_SHORT = "!!off";
-  const ON_SHORT = "!!on";
+  // --- counted tokens (Parse Spec, "Token Sequences") ---------------------
+  // Runs of EXACTLY n, neither preceded nor followed by the same character.
+  const DT2_SRC = "(?<!\\.)\\.{2}(?!\\.)";
+  const QUAD_SRC = "(?<!\\.)(?:\\.{4}|\\.{2}[ \\t]+\\.{2})(?!\\.)";
+  const CM2_SRC = "(?<!,),,(?!,)";
+  const SC2_SRC = "(?<!;);;(?!;)";
+
+  // A command is recognised by SHAPE (Highlight Spec D6): `!!name`,
+  // `ddot.it/name`, `http(s)://ddot.it/name` with a non-empty name. `!!` is
+  // an EM2 (exactly two `!`), so `!!!off` is not a command prefix. `?` and
+  // `#` do not terminate a command; they introduce its query/fragment.
+  const CMD_PREFIX_SRC = "(?:(?:https?:\\/\\/)?ddot\\.it\\/|(?<!!)!!(?!!))";
+  const CMD_SRC = CMD_PREFIX_SRC + "[^\\s?#]+(?:\\?[^\\s#]*)?(?:#\\S*)?";
+
+  const CMD_ONLY = new RegExp("^" + CMD_SRC + "$");
+  // A command nested in field text: preceded by start-of-slot or whitespace.
+  const NESTED_CMD_SRC = "(?<!\\S)" + CMD_SRC;
+
+  // `!!off` / `!!on` are recognised ANYWHERE on a line (Parse Spec
+  // "pre-parse-recognition") — commonly inside a host comment
+  // (`<!-- ddot.it/off -->`, `# !!on`). `(?![^\s?#])` pins the exact NAME,
+  // so `!!office` is not `!!off`.
+  const OFF_LINE = new RegExp("(" + CMD_PREFIX_SRC + "off)(?![^\\s?#])");
+  const ON_LINE = new RegExp("(" + CMD_PREFIX_SRC + "on)(?![^\\s?#])");
+
+  // A `!!block` opener must END its physical line (block-as-field).
+  const BLOCK_OPENER_SRC = "(" + CMD_PREFIX_SRC + "block)(?:(\\?end=)(\\S+))?[ \\t]*$";
+
+  // A line-initial `,,` or `;;` followed by a meta pair continues the
+  // previous logical line as metadata (Parse Spec "block-continuation").
+  const META_CONTINUATION = new RegExp(
+    "^[ \\t]*(?:(" + CM2_SRC + ")|(" + SC2_SRC + "))(?=[ \\t]+" + DT2_SRC + ")"
+  );
+
+  // QUAD before DT2 so `.. ..` is ONE operator, not two.
+  const SIGNIFICANT_SRC = QUAD_SRC + "|" + DT2_SRC + "|" + CM2_SRC + "|" + SC2_SRC;
+  const SIGNIFICANT = new RegExp(SIGNIFICANT_SRC);
+
+  // THE GATE (How-To-Highlight D5): a line is ddot.it only when it carries a
+  // complete operator skeleton — two DT2, or one DT4 / `.. ..`. A lone `..`
+  // or an ellipsis in prose stays entirely plain (23-not-a-triple).
+  const GATE = new RegExp(
+    "(?:(?<!\\.)\\.{4}(?!\\.)|(?<!\\.)\\.{2}(?!\\.).*(?<!\\.)\\.{2}(?!\\.))"
+  );
+
+  // --- token type → CSS class ----------------------------------------------
+  const TOKEN_CLASS = {
+    "subject": "ddot-subject",
+    "relation": "ddot-predicate",
+    "object": "ddot-object",
+    "doubledot": "ddot-sep",
+    "meta-doubledot": "ddot-sep",
+    "meta-delim": "ddot-meta-sep",
+    "meta-separator": "ddot-meta-sep",
+    "meta-relation": "ddot-meta-relation",
+    "meta-object": "ddot-meta-object",
+    "meta-text": "ddot-meta-text",
+    "command": "ddot-command",
+    "command-param": "ddot-command-param",
+    "block-end": "ddot-block-end",
+    "excluded": "ddot-inactive",
+    "verbatim": "ddot-verbatim"
+  };
+
+  // Slots that may carry a nested in-text command span (Highlight Spec D6).
+  const SLOT_TOKENS = new Set([
+    "subject", "relation", "object", "meta-relation", "meta-object", "meta-text"
+  ]);
+
   const PROCESSED = "ddotProcessed";
 
-  function isOff(s) { return s === OFF || s === OFF_SHORT; }
-  function isOn(s)  { return s === ON  || s === ON_SHORT;  }
-
-  // Match `<code class="language-ddot…">` covering the three accepted info
-  // strings (ddot, ddot.it, ddotit). Use [class~="language-ddot.it"] would
-  // miss attribute-encoded dots in some renderers, so do a startsWith check
-  // against the full class list instead.
-  function isDdotCodeBlock(el) {
-    if (el.tagName !== "CODE") return false;
-    for (const c of el.classList) {
-      const lower = c.toLowerCase();
-      if (lower === "language-ddot" || lower === "language-ddot.it" || lower === "language-ddotit") return true;
-    }
-    return false;
+  function isWhitespace(c) {
+    return c === " " || c === "\t" || c === "\n" || c === "\r" || c === "\f" || c === "\v";
   }
 
   function escapeHtml(s) {
@@ -52,110 +114,328 @@
     return out;
   }
 
-  function isWhitespace(c) { return c === " " || c === "\t" || c === "\n" || c === "\r" || c === "\f" || c === "\v"; }
-
-  function roleClass(slot, text) {
-    if (text.startsWith("ddot.it") || COMMAND_TOKENS.has(text)) return "ddot-command";
-    if (slot <= 0) return "ddot-subject";
-    if (slot === 1) return "ddot-predicate";
-    return "ddot-object";
+  // Match RE against line at or after `from` (Java Matcher.find(from)).
+  function findFrom(src, line, from) {
+    const re = new RegExp(src, "g");
+    re.lastIndex = from;
+    return re.exec(line);
   }
 
-  function renderSegment(segment, slot, out) {
-    let s = 0, e = segment.length;
-    while (s < e && isWhitespace(segment.charAt(s))) s++;
-    while (e > s && isWhitespace(segment.charAt(e - 1))) e--;
-    if (s > 0) out.push(escapeHtml(segment.substring(0, s)));
-    const text = segment.substring(s, e);
-    if (text.length > 0) {
-      out.push('<span class="' + roleClass(slot, text) + '">' + escapeHtml(text) + "</span>");
+  // --- tokenizer: port of DdotTokenizer#tokenize ---------------------------
+
+  function addTrimmed(list, line, type) {
+    let s = 0, e = line.length;
+    while (s < e && isWhitespace(line.charAt(s))) s++;
+    while (e > s && isWhitespace(line.charAt(e - 1))) e--;
+    if (s < e) list.push({ start: s, end: e, type: type });
+  }
+
+  function startsWithOperator(line) {
+    const m = SIGNIFICANT.exec(line);
+    return m !== null && line.substring(0, m.index).trim().length === 0;
+  }
+
+  // BLOCK_OPENER groups are contiguous: group1 starts at m.index, group2
+  // (`?end=`) directly follows it, group3 (the marker) follows group2.
+  function emitBlockOpener(list, m) {
+    const s1 = m.index, e1 = s1 + m[1].length;
+    list.push({ start: s1, end: e1, type: "command" });
+    if (m[2] !== undefined) {
+      const e2 = e1 + m[2].length;
+      list.push({ start: e1, end: e2, type: "command-param" });
+      list.push({ start: e2, end: e2 + m[3].length, type: "block-end" });
     }
-    if (e < segment.length) out.push(escapeHtml(segment.substring(e)));
   }
 
-  function renderFreeForm(text, out) {
-    const trimmed = text.trim();
-    if (trimmed.startsWith("ddot.it") || COMMAND_TOKENS.has(trimmed)) {
-      let s = 0;
-      while (s < text.length && isWhitespace(text.charAt(s))) s++;
-      let e = text.length;
-      while (e > s && isWhitespace(text.charAt(e - 1))) e--;
-      if (s > 0) out.push(escapeHtml(text.substring(0, s)));
-      out.push('<span class="ddot-command">' + escapeHtml(text.substring(s, e)) + "</span>");
-      if (e < text.length) out.push(escapeHtml(text.substring(e)));
-      return;
+  function emitSlot(list, line, lo, hi, phase) {
+    let s = lo, e = hi;
+    while (s < e && isWhitespace(line.charAt(s))) s++;
+    while (e > s && isWhitespace(line.charAt(e - 1))) e--;
+    if (s >= e) return;
+
+    const text = line.substring(s, e);
+    let type;
+    if (CMD_ONLY.test(text)) {
+      type = "command";   // a slot whose whole text is a command IS a command
+    } else {
+      type = {
+        subject: "subject",
+        relation: "relation",
+        object: "object",
+        meta_rel: "meta-relation",
+        meta_obj: "meta-object",
+        meta_start: "meta-text"   // text after `,,` with no `..`
+      }[phase];
     }
-    out.push(escapeHtml(text));
+    list.push({ start: s, end: e, type: type });
   }
 
-  function renderInline(line, out, cls) {
-    out.push('<span class="' + cls + '">' + escapeHtml(line) + "</span>");
-  }
-
-  function renderInactiveLine(line, out, directive) {
-    const cls = directive ? "ddot-directive" : "ddot-inactive";
-    out.push('<span class="' + cls + '">' + escapeHtml(line) + "</span>");
-  }
-
-  function renderTripleLine(line, out) {
-    const metaStart = line.indexOf(",,");
-    const body = metaStart >= 0 ? line.substring(0, metaStart) : line;
-    const tail = metaStart >= 0 ? line.substring(metaStart) : "";
-
-    let leadEnd = 0;
-    while (leadEnd < body.length && isWhitespace(body.charAt(leadEnd))) leadEnd++;
-    out.push(escapeHtml(body.substring(0, leadEnd)));
-    const content = body.substring(leadEnd);
-
-    SEP_RE.lastIndex = 0;
+  // Emit one line as a sequence of slots and operators, starting in `phase`.
+  // Mirrors the parse automaton: the object may contain `..`, `;;` separates
+  // inline meta pairs only, and a `!!block` that ends the line opens a
+  // verbatim region.
+  function emitLine(list, line, phase, inBlock) {
+    const st = { opensBlock: false, opensMeta: false, blockEnd: null };
+    const sig = new RegExp(SIGNIFICANT_SRC, "g");
     let last = 0;
-    let slot = 0;
-    let any = false;
     let m;
-    while ((m = SEP_RE.exec(content)) !== null) {
-      any = true;
-      const segment = content.substring(last, m.index);
-      renderSegment(segment, slot, out);
-      const sep = m[0];
-      const advance = sep.length === 4 ? 2 : 1;
-      out.push('<span class="ddot-sep">' + escapeHtml(sep) + "</span>");
-      slot = Math.min(slot + advance, 2);
-      last = SEP_RE.lastIndex;
-    }
-    const trailing = content.substring(last);
-    if (any) renderSegment(trailing, slot, out);
-    else renderFreeForm(trailing, out);
 
-    if (tail.length > 0) {
-      out.push('<span class="ddot-meta">' + escapeHtml(tail) + "</span>");
+    while ((m = sig.exec(line)) !== null) {
+      let sep = m[0];
+      const sepStart = m.index;
+      let sepEnd = sepStart + sep.length;
+
+      let isQuad = sep.length === 4 || sep.indexOf(" ") >= 0 || sep.indexOf("\t") >= 0;
+      const isComma = sep === ",,";
+      const isSemi = sep === ";;";
+
+      // Once in an object-ish phase, `..` is content, not a separator.
+      if (!isComma && !isSemi && (phase === "object" || phase === "meta_obj")) continue;
+      // `;;` separates inline meta pairs ONLY; inside a `,,` block it is
+      // ordinary content (28-semicolon-in-meta-block).
+      if (isSemi && (inBlock || phase !== "meta_obj")) continue;
+      if (isComma && phase !== "object") continue;
+
+      // The relation-closing operator is always a plain `..`, never the
+      // untyped `.. ..` form — otherwise an object starting with `..` (a
+      // relative path) merges with the closing marker (20-object-dotdot).
+      if (isQuad && sep.length !== 4 && (phase === "relation" || phase === "meta_rel")) {
+        isQuad = false;
+        sep = line.substring(sepStart, sepStart + 2);
+        sepEnd = sepStart + 2;
+      }
+
+      // A `!!block` ending the line makes the pending slot a block opener.
+      const bo = findFrom(BLOCK_OPENER_SRC, line, last);
+      if (bo !== null && line.substring(last, bo.index).trim().length === 0
+          && bo.index < m.index) {
+        emitBlockOpener(list, bo);
+        st.opensBlock = true;
+        st.blockEnd = bo[3] !== undefined ? bo[3] : null;
+        return st;
+      }
+
+      emitSlot(list, line, last, sepStart, phase);
+      const sepType = isComma ? "meta-delim" : isSemi ? "meta-separator"
+        : (phase === "meta_start" || phase === "meta_rel" || phase === "meta_obj" || inBlock)
+          ? "meta-doubledot" : "doubledot";
+      list.push({ start: sepStart, end: sepEnd, type: sepType });
+      last = sepEnd;
+
+      switch (phase) {
+        case "subject": phase = isQuad ? "object" : "relation"; break;
+        case "relation": phase = "object"; break;
+        case "object": phase = isComma ? "meta_start" : "object"; break;
+        // The untyped meta form `,, .... obj` skips the meta relation.
+        case "meta_start": phase = isQuad ? "meta_obj" : "meta_rel"; break;
+        case "meta_rel": phase = "meta_obj"; break;
+        case "meta_obj": phase = isSemi ? "meta_start" : "meta_obj"; break;
+      }
     }
+
+    // Trailing slot, or a block opener with no separator after it.
+    const bo = findFrom(BLOCK_OPENER_SRC, line, last);
+    if (bo !== null && line.substring(last, bo.index).trim().length === 0) {
+      emitBlockOpener(list, bo);
+      st.opensBlock = true;
+      st.blockEnd = bo[3] !== undefined ? bo[3] : null;
+      return st;
+    }
+    if (line.substring(last).trim().length === 0 && phase === "meta_start") {
+      st.opensMeta = true;   // trailing `,,` opened a block
+    } else {
+      emitSlot(list, line, last, line.length, phase);
+    }
+    return st;
+  }
+
+  function tokenize(lines) {
+    const toks = [];
+    for (let i = 0; i < lines.length; i++) toks.push([]);
+
+    let off = false;         // inside !!off … !!on
+    let verbatim = false;    // inside a !!block body
+    let blockEnd = null;     // custom ?end= marker, null = blank-line form
+    let inMetaBlock = false; // inside a ,, … ,, block
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      const list = toks[i];
+
+      // --- excluded region: inactive, NO role spans ----------------------
+      if (off) {
+        const on = ON_LINE.exec(line);
+        if (on !== null) {
+          list.push({ start: on.index, end: on.index + on[1].length, type: "command" });
+          off = false;
+        } else if (trimmed.length > 0) {
+          addTrimmed(list, line, "excluded");
+        }
+        continue;
+      }
+      // --- verbatim (!!block body) ----------------------------------------
+      if (verbatim) {
+        if (blockEnd !== null) {
+          if (trimmed === blockEnd) {
+            addTrimmed(list, line, "block-end");
+            verbatim = false;
+            blockEnd = null;
+          } else if (trimmed.length > 0) {
+            addTrimmed(list, line, "verbatim");
+          }
+        } else if (trimmed.length === 0) {
+          verbatim = false;   // blank line ends the unmarked form
+        } else {
+          addTrimmed(list, line, "verbatim");
+        }
+        continue;
+      }
+      const offM = OFF_LINE.exec(line);
+      if (offM !== null) {
+        list.push({ start: offM.index, end: offM.index + offM[1].length, type: "command" });
+        off = true;
+        inMetaBlock = false;
+        continue;
+      }
+
+      // --- inside a ,, block ----------------------------------------------
+      if (inMetaBlock) {
+        if (trimmed === ",,") {
+          addTrimmed(list, line, "meta-delim");
+          inMetaBlock = false;
+        } else if (trimmed.length > 0) {
+          if (SIGNIFICANT.test(line) && startsWithOperator(line)) {
+            emitLine(list, line, "meta_start", true);
+          } else {
+            addTrimmed(list, line, "meta-text");
+          }
+        }
+        continue;
+      }
+      if (trimmed.length === 0) continue;
+
+      // --- a standalone `,,` opens a block for the previous triple --------
+      if (trimmed === ",,") {
+        addTrimmed(list, line, "meta-delim");
+        inMetaBlock = true;
+        continue;
+      }
+
+      // --- `,, ..mr.. mo` continues the previous logical line -------------
+      const mc = META_CONTINUATION.exec(line);
+      if (mc !== null) {
+        // The consumed match is leading ws + the 2-char delimiter (the meta
+        // pair itself sits in a lookahead), so the group ends the match.
+        const gEnd = mc.index + mc[0].length;
+        const gStart = gEnd - 2;
+        list.push({ start: gStart, end: gEnd, type: mc[1] !== undefined ? "meta-delim" : "meta-separator" });
+        const masked = line.substring(0, gEnd).replace(/[^ \t]/g, " ") + line.substring(gEnd);
+        emitLine(list, masked, "meta_start", false);
+        continue;
+      }
+
+      // --- `!!block` alone on a line = a SUBJECT opener --------------------
+      const bo = findFrom(BLOCK_OPENER_SRC, line, 0);
+      if (bo !== null && line.substring(0, bo.index).trim().length === 0) {
+        emitBlockOpener(list, bo);
+        verbatim = true;
+        blockEnd = bo[3] !== undefined ? bo[3] : null;
+        continue;
+      }
+
+      // --- the gate ---------------------------------------------------------
+      if (!GATE.test(line)) continue;   // NotATriple: no spans at all
+
+      const st = emitLine(list, line, "subject", false);
+      if (st.opensBlock) {
+        verbatim = true;
+        blockEnd = st.blockEnd;
+      } else if (st.opensMeta) {
+        inMetaBlock = true;
+      }
+    }
+    return toks;
+  }
+
+  // --- HTML emission --------------------------------------------------------
+
+  // `?query` / `#fragment` render as a nested command-param span.
+  function commandSpan(text, out) {
+    let idx = -1;
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charAt(i);
+      if (c === "?" || c === "#") { idx = i; break; }
+    }
+    if (idx >= 0) {
+      out.push('<span class="ddot-command">' + escapeHtml(text.substring(0, idx))
+        + '<span class="ddot-command-param">' + escapeHtml(text.substring(idx))
+        + "</span></span>");
+    } else {
+      out.push('<span class="ddot-command">' + escapeHtml(text) + "</span>");
+    }
+  }
+
+  // Slot content with nested in-text command spans (Highlight Spec D6).
+  function slotInner(text, out) {
+    const re = new RegExp(NESTED_CMD_SRC, "g");
+    let pos = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      out.push(escapeHtml(text.substring(pos, m.index)));
+      commandSpan(m[0], out);
+      pos = m.index + m[0].length;
+    }
+    out.push(escapeHtml(text.substring(pos)));
+  }
+
+  function renderToken(text, type, out) {
+    if (type === "command") {
+      commandSpan(text, out);
+    } else if (SLOT_TOKENS.has(type)) {
+      out.push('<span class="' + TOKEN_CLASS[type] + '">');
+      slotInner(text, out);
+      out.push("</span>");
+    } else {
+      out.push('<span class="' + TOKEN_CLASS[type] + '">' + escapeHtml(text) + "</span>");
+    }
+  }
+
+  function renderLine(line, toks, out) {
+    let pos = 0;
+    for (const t of toks) {
+      if (t.start > pos) out.push(escapeHtml(line.substring(pos, t.start)));
+      renderToken(line.substring(t.start, t.end), t.type, out);
+      pos = t.end;
+    }
+    if (pos < line.length) out.push(escapeHtml(line.substring(pos)));
   }
 
   function renderBody(raw) {
+    // Strip a single trailing newline that the Markdown lib often leaves on
+    // fence bodies; preserve internal blank lines.
     const body = raw.endsWith("\n") ? raw.substring(0, raw.length - 1) : raw;
     const lines = body.split("\n");
+    const tokens = tokenize(lines);
     const out = [];
-    let inMetaBlock = false;
-    let off = false;
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
       if (i > 0) out.push("\n");
-      const trimmed = line.trim();
-      if (isOff(trimmed)) { renderInactiveLine(line, out, true);  off = true;  continue; }
-      if (isOn(trimmed))  { renderInactiveLine(line, out, true);  off = false; continue; }
-      if (off)            { renderInactiveLine(line, out, false);              continue; }
-      if (trimmed === ",,") {
-        renderInline(line, out, "ddot-meta-sep");
-        inMetaBlock = !inMetaBlock;
-        continue;
-      }
-      if (inMetaBlock) {
-        out.push('<span class="ddot-meta">' + escapeHtml(line) + "</span>");
-        continue;
-      }
-      renderTripleLine(line, out);
+      renderLine(lines[i], tokens[i], out);
     }
     return out.join("");
+  }
+
+  // --- DOM plumbing -----------------------------------------------------------
+
+  // Match `<code class="language-ddot…">` covering the three accepted info
+  // strings (ddot, ddot.it, ddotit).
+  function isDdotCodeBlock(el) {
+    if (el.tagName !== "CODE") return false;
+    for (const c of el.classList) {
+      const lower = c.toLowerCase();
+      if (lower === "language-ddot" || lower === "language-ddot.it" || lower === "language-ddotit") return true;
+    }
+    return false;
   }
 
   function processOne(codeEl) {
@@ -195,9 +475,17 @@
     }
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", start);
-  } else {
-    start();
+  // Expose the pure renderer for the Node test harness
+  // (scripts/test-preview-js.mjs) without changing browser behaviour.
+  if (typeof globalThis !== "undefined") {
+    globalThis.ddotPreview = { renderBody: renderBody };
+  }
+
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start);
+    } else {
+      start();
+    }
   }
 })();
