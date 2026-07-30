@@ -13,8 +13,8 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Wires the pure-string {@link DdotFormatter} into IntelliJ's standard
- * "Reformat Code" action via the asynchronous formatter API.
+ * Wires the pure-string {@link DdotLintFormatter} — i.e. the shared linter's FIX path — into
+ * IntelliJ's standard "Reformat Code" action via the asynchronous formatter API.
  */
 public final class DdotFormattingService extends AsyncDocumentFormattingService {
 
@@ -36,7 +36,7 @@ public final class DdotFormattingService extends AsyncDocumentFormattingService 
             @Override
             public void run() {
                 String input = request.getDocumentText();
-                String output = DdotFormatter.formatDocument(input);
+                String output = DdotLintFormatter.formatDocument(input);
                 request.onTextReady(output);
             }
 

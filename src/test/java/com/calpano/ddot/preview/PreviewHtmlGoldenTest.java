@@ -1,6 +1,7 @@
 package com.calpano.ddot.preview;
 
 import com.calpano.ddot.it.event.DdotEventExporter;
+import com.calpano.ddot.it.render.DdotHtmlRenderer;
 import com.calpano.ddot.it.token.DdotTokenizer;
 import org.junit.Test;
 
@@ -22,7 +23,9 @@ import static org.junit.Assert.fail;
  *   <li>{@code input.ddot} — the source,</li>
  *   <li>{@code expected.body.html} — role-classed body HTML, also produced
  *       by the Ruby renderer ({@code ddot-render.rb}) and asserted to match
- *       {@link DdotMarkdownPreviewRenderer#body(String)},</li>
+ *       {@link DdotHtmlRenderer#body(String)} (which is itself a fold over
+ *       {@link DdotTokenizer#tokenize}, so this check and the token check below
+ *       pin the same code path),</li>
  *   <li>{@code expected.events.jsonl} — triple events as defined at
  *       https://ddot.it/developer-guide.html#events, asserted to match
  *       {@link DdotEventExporter#parse} + {@link DdotEventExporter#toJsonl}.</li>
@@ -97,7 +100,7 @@ public final class PreviewHtmlGoldenTest {
             String inputText = Files.readString(input);
 
             checkOrRegen(caseDir.resolve("expected.body.html"),
-                    DdotMarkdownPreviewRenderer.body(inputText),
+                    DdotHtmlRenderer.body(inputText),
                     name + " [html]", regen, failures);
 
             checkOrRegen(caseDir.resolve("expected.events.jsonl"),

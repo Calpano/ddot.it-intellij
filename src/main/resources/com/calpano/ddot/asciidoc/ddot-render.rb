@@ -5,7 +5,7 @@
 # CANONICAL source of the golden corpus's `expected.body.html` files
 # (`../ddot.it/test-data/regenerate-html.rb` runs this file). Two mirrors must
 # produce byte-identical output for every corpus case:
-#   - Java:  com.calpano.ddot.preview.DdotMarkdownPreviewRenderer#body
+#   - Java:  com.calpano.ddot.it.render.DdotHtmlRenderer#body
 #   - JS:    src/main/resources/preview/ddot-preview.js (renderBody)
 # When you change this file, regenerate the corpus and update both mirrors.
 #

@@ -3,7 +3,7 @@
 // The Markdown plugin's default fence renderer emits
 //   <pre class="code-fence"><code class="language-ddot">…raw text…</code></pre>
 // We re-walk every ddot code block on each preview reload, run the same
-// per-line role assignment as DdotMarkdownPreviewRenderer.body() in Java
+// per-line role assignment as DdotHtmlRenderer.body() in Java
 // (which the cross-impl golden corpus locks down byte-for-byte), and
 // replace the block's inner HTML with role-classed spans.
 //

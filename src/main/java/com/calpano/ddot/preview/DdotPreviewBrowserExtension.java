@@ -26,7 +26,8 @@ import java.util.Set;
  *       {@code <pre class="code-fence"><code class="language-ddot">…raw…</code></pre>}.</li>
  *   <li>This extension injects {@code ddot-preview.css} (role colors) and
  *       {@code ddot-preview.js} (DOM walker that re-implements
- *       {@link DdotMarkdownPreviewRenderer#body} on the rendered HTML).</li>
+ *       {@link com.calpano.ddot.it.render.DdotHtmlRenderer#body} on the
+ *       rendered HTML).</li>
  *   <li>On every preview reload, the JS re-runs and replaces the inner HTML
  *       of every {@code code[class*="language-ddot"]} block with role-classed
  *       spans.</li>
