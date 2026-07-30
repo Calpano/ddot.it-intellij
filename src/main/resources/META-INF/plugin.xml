@@ -10,10 +10,15 @@
     <version>0.1.3</version>
     <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
 
-    <!-- IDE compatibility range. Matches pom.xml `intellij.version=2024.2`.
+    <!-- IDE compatibility range. Matches pom.xml `intellij.version=2026.2`.
          Update on retarget; otherwise users on newer IDEs get an "incompatible"
-         banner instead of a broken install. -->
-    <idea-version since-build="242" until-build="261.*"/>
+         banner instead of a broken install.
+
+         since-build is 262, not the older 242: the plugin is compiled to Java 21
+         bytecode against the 2026.2 platform, so it cannot load in 2024.2, whose
+         runtime is Java 17. Claiming the wider range would let those users
+         install a plugin that fails at class-load time. -->
+    <idea-version since-build="262" until-build="262.*"/>
 
     <description><![CDATA[
         <p>Authoring support for <a href="https://ddot.it">ddot.it — Knowledge Graph Notation</a>, a minimal text format
@@ -162,10 +167,16 @@
 
     <depends>com.intellij.modules.platform</depends>
 
-    <!-- Bundled JSON module — present in every IntelliJ-based IDE. Required
-         because CjJsonFileType delegates to com.intellij.json.JsonLanguage to
-         give *.cj.json files full JSON support. -->
-    <depends>com.intellij.modules.json</depends>
+    <!-- Bundled JSON module. OPTIONAL: only CjJsonFileType needs it (it delegates
+         to com.intellij.json.JsonLanguage so *.cj.json files get full JSON
+         support). Everything else — the ddot.it language, highlighting,
+         completion, indexes — is independent of JSON, so a hard <depends> would
+         take the whole plugin down wherever the JSON plugin is absent. That is
+         not hypothetical: it is exactly what happens in the LightPlatform test
+         fixture, which loads plugins from the classpath and has no JSON plugin,
+         and it disabled ddot.it wholesale — .ddot files fell back to plain text
+         with no annotator, no completion and no indexes. -->
+    <depends optional="true" config-file="ddot-json.xml">com.intellij.modules.json</depends>
 
     <!-- ============================================================
          Optional integrations — load only when the host plugin is
@@ -190,16 +201,6 @@
                 fieldName="INSTANCE"
                 language="ddot.it"
                 extensions="ddot"/>
-
-        <!-- Claim the compound *.cj.json name pattern for the bundled JSON
-             language. `patterns` (a glob) is required here rather than
-             `extensions`, which would only match the trailing `json` segment. -->
-        <fileType
-                name="CJ JSON"
-                implementationClass="com.calpano.ddot.CjJsonFileType"
-                fieldName="INSTANCE"
-                language="JSON"
-                patterns="*.cj.json"/>
 
         <lang.parserDefinition
                 language="ddot.it"
@@ -228,6 +229,14 @@
         <completion.contributor
                 language="ddot.it"
                 implementationClass="com.calpano.ddot.completion.DdotCompletionContributor"/>
+
+        <!-- Project-wide vocabulary index for completion: subjects/predicates/objects
+             from every .ddot file and every ddot block embedded in Markdown/AsciiDoc. -->
+        <fileBasedIndex implementation="com.calpano.ddot.index.DdotEntityIndex"/>
+
+        <!-- Per-file full triples; assembled into a project Kgraph (DdotKgraphService)
+             for graph-aware, context-sensitive completion queries. -->
+        <fileBasedIndex implementation="com.calpano.ddot.index.DdotTripleIndex"/>
 
         <formattingService
                 implementation="com.calpano.ddot.formatter.DdotFormattingService"/>

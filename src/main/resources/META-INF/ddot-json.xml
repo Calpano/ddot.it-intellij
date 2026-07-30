@@ -1,0 +1,21 @@
+<!--
+    Loaded only when the bundled JSON plugin (com.intellij.modules.json) is
+    present — see the optional <depends> in plugin.xml.
+
+    Claims the compound *.cj.json name pattern for the bundled JSON language, so
+    Connected JSON files get JSON highlighting, structure and completion, and the
+    "Convert Connected JSON (CJ) to ddot.it" action has a file type to hang off.
+
+    `patterns` (a glob) is required here rather than `extensions`, which would
+    only match the trailing `json` segment.
+-->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType
+                name="CJ JSON"
+                implementationClass="com.calpano.ddot.CjJsonFileType"
+                fieldName="INSTANCE"
+                language="JSON"
+                patterns="*.cj.json"/>
+    </extensions>
+</idea-plugin>
