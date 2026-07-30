@@ -52,8 +52,15 @@
 
         <!-- graphinout: provides the canonical Connected JSON (CJ) -> ddot.it mapping
              (com.graphinout.base.cj.document.CjDocuments + reader-ddot's DDotOutput).
-             reader-ddot pulls in `base` and the whole conversion stack transitively. -->
-        <graphinout.version>0.2.1-SNAPSHOT</graphinout.version>
+             reader-ddot pulls in `base` and the whole conversion stack transitively.
+
+             Keep this in lockstep with the sibling graphinout checkout's own <version>:
+             graphinout publishes to no repository, so these artifacts come from a local
+             `mvn install` there, and pinning an older snapshot silently keeps building
+             against a stale jar. 0.2.2-SNAPSHOT is the first reader-ddot that parses via
+             ddot-core's DdotTokenizer/DdotEventExporter instead of its own hand-rolled
+             grammar, so CJ -> ddot conversion here now shares this plugin's parser. -->
+        <graphinout.version>0.2.2-SNAPSHOT</graphinout.version>
         <idea.lib.dir>${project.build.directory}/idea-lib</idea.lib.dir>
         <!--
             Structure-preserving unpack of the same ideaIC zip (build.txt + lib/**),
@@ -225,7 +232,7 @@
         <!--
             ddot.it knowledge model (Kbase/Kgraph). Backs project-wide, graph-aware
             completion queries (see spec-models.adoc). Bundled+shaded like reader-ddot;
-            shares the same graphinout 0.2.1 stack. test-scoped logback/junit/truth in
+            shares the same graphinout ${graphinout.version} stack. test-scoped logback/junit/truth in
             the javalib do not propagate.
         -->
         <dependency>
