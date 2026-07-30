@@ -29,5 +29,12 @@ public final class DdotEvent {
         this.location = location;
     }
 
-    public record MetaPair(@NotNull String type, @NotNull String to) {}
+    /**
+     * One metadata entry. {@code type} is null for the untyped meta shortcut
+     * ({@code ,, .... value}) and is then omitted from the JSON, exactly as an
+     * untyped triple omits its own {@code type} — consumers default it to
+     * {@code links to}. Free meta text ({@code ,, a note}) is not untyped: it
+     * carries the built-in relation {@code text}.
+     */
+    public record MetaPair(@Nullable String type, @NotNull String to) {}
 }
