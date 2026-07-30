@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
  * </ul>
  *
  * <p>The line/slot model is a faithful port of the corpus-pinned positional
- * tokenizer {@link com.calpano.ddot.highlighting.DdotTokenizer} (which
+ * tokenizer {@link com.calpano.ddot.it.token.DdotTokenizer} (which
  * mirrors the TextMate grammar): tokenize each line into
  * {@code {start, end, token}} spans, then wrap each span in a role-classed
  * {@code <span>}. Normative rules: {@code site/spec/ddot-it-parse.adoc}
@@ -41,8 +41,10 @@ public final class DdotMarkdownPreviewRenderer {
 
     // --- counted tokens (Parse Spec, "Token Sequences") --------------------
     // Runs of EXACTLY n, neither preceded nor followed by the same character.
+    /** WS per the Parse Spec: TAB plus any Unicode space separator (Zs). */
+    private static final String WS = "[\\t\\p{Zs}]";
     private static final String DT2_SRC  = "(?<!\\.)\\.{2}(?!\\.)";
-    private static final String QUAD_SRC = "(?<!\\.)(?:\\.{4}|\\.{2}[ \\t]+\\.{2})(?!\\.)";
+    private static final String QUAD_SRC = "(?<!\\.)(?:\\.{4}|\\.{2}" + WS + "+\\.{2})(?!\\.)";
     private static final String CM2_SRC  = "(?<!,),,(?!,)";
     private static final String SC2_SRC  = "(?<!;);;(?!;)";
 
@@ -69,14 +71,14 @@ public final class DdotMarkdownPreviewRenderer {
 
     /** A `!!block` opener must END its physical line (block-as-field). */
     private static final Pattern BLOCK_OPENER =
-            Pattern.compile("(" + CMD_PREFIX_SRC + "block)(?:(\\?end=)(\\S+))?[ \\t]*$");
+            Pattern.compile("(" + CMD_PREFIX_SRC + "block)(?:(\\?end=)(\\S+))?" + WS + "*$");
 
     /**
      * A line-initial `,,` or `;;` followed by a meta pair continues the
      * previous logical line as metadata (Parse Spec "block-continuation").
      */
     private static final Pattern META_CONTINUATION = Pattern.compile(
-            "^[ \\t]*(?:(" + CM2_SRC + ")|(" + SC2_SRC + "))(?=[ \\t]+" + DT2_SRC + ")");
+            "^" + WS + "*(?:(" + CM2_SRC + ")|(" + SC2_SRC + "))(?=" + WS + "+" + DT2_SRC + ")");
 
     /** QUAD before DT2 so `.. ..` is ONE operator, not two. */
     private static final Pattern SIGNIFICANT =
@@ -157,7 +159,7 @@ public final class DdotMarkdownPreviewRenderer {
 
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-            String trimmed = line.trim();
+            String trimmed = trimWs(line);
             List<Tok> list = toks.get(i);
 
             // --- excluded region: inactive, NO role spans ------------------
@@ -220,7 +222,7 @@ public final class DdotMarkdownPreviewRenderer {
 
             // --- `!!block` alone on a line = a SUBJECT opener ----------------
             Matcher bo = BLOCK_OPENER.matcher(line);
-            if (bo.find() && line.substring(0, bo.start()).trim().isEmpty()) {
+            if (bo.find() && trimWs(line.substring(0, bo.start())).isEmpty()) {
                 emitBlockOpener(list, bo);
                 verbatim = true; blockEnd = bo.group(3);
                 continue;
@@ -238,7 +240,18 @@ public final class DdotMarkdownPreviewRenderer {
 
     private static boolean startsWithOperator(String line) {
         Matcher m = SIGNIFICANT.matcher(line);
-        return m.find() && line.substring(0, m.start()).trim().isEmpty();
+        return m.find() && trimWs(line.substring(0, m.start())).isEmpty();
+    }
+
+    /**
+     * A {@code !!block} opener is valid ONLY in a value position. The spec
+     * names four (Parse Spec "block-as-field"): Subject, Object, MetaObject,
+     * and the free meta text after {@code ,,} ({@link Phase#META_START}).
+     * Relation and MetaRelation hold names, so a block there stays in-text.
+     */
+    private static boolean opensBlockIn(Phase phase) {
+        return phase == Phase.SUBJECT || phase == Phase.OBJECT
+                || phase == Phase.META_OBJ || phase == Phase.META_START;
     }
 
     /**
@@ -276,13 +289,16 @@ public final class DdotMarkdownPreviewRenderer {
                 sepEnd = sepStart + 2;
             }
 
-            // A `!!block` ending the line makes the pending slot a block opener.
-            Matcher bo = BLOCK_OPENER.matcher(line);
-            if (bo.find(last) && line.substring(last, bo.start()).trim().isEmpty()
-                    && bo.start() < m.start()) {
-                emitBlockOpener(list, bo);
-                st.opensBlock = true; st.blockEnd = bo.group(3);
-                return st;
+            // A `!!block` ending the line makes the pending slot a block opener —
+            // but only when that slot is a value position (block-as-field).
+            if (opensBlockIn(phase)) {
+                Matcher bo = BLOCK_OPENER.matcher(line);
+                if (bo.find(last) && trimWs(line.substring(last, bo.start())).isEmpty()
+                        && bo.start() < m.start()) {
+                    emitBlockOpener(list, bo);
+                    st.opensBlock = true; st.blockEnd = bo.group(3);
+                    return st;
+                }
             }
 
             emitSlot(list, line, last, sepStart, phase);
@@ -303,14 +319,18 @@ public final class DdotMarkdownPreviewRenderer {
             };
         }
 
-        // Trailing slot, or a block opener with no separator after it.
-        Matcher bo = BLOCK_OPENER.matcher(line);
-        if (bo.find(last) && line.substring(last, bo.start()).trim().isEmpty()) {
-            emitBlockOpener(list, bo);
-            st.opensBlock = true; st.blockEnd = bo.group(3);
-            return st;
+        // Trailing slot, or a block opener with no separator after it. The
+        // meta-text position lands here: `… ,, !!block` leaves phase
+        // META_START with nothing but the opener left on the line.
+        if (opensBlockIn(phase)) {
+            Matcher bo = BLOCK_OPENER.matcher(line);
+            if (bo.find(last) && trimWs(line.substring(last, bo.start())).isEmpty()) {
+                emitBlockOpener(list, bo);
+                st.opensBlock = true; st.blockEnd = bo.group(3);
+                return st;
+            }
         }
-        if (line.substring(last).trim().isEmpty() && phase == Phase.META_START) {
+        if (trimWs(line.substring(last)).isEmpty() && phase == Phase.META_START) {
             st.opensMetaBlock = true;   // trailing `,,` opened a block
         } else {
             emitSlot(list, line, last, line.length(), phase);
@@ -328,8 +348,8 @@ public final class DdotMarkdownPreviewRenderer {
 
     private static void emitSlot(List<Tok> list, String line, int lo, int hi, Phase phase) {
         int s = lo, e = hi;
-        while (s < e && Character.isWhitespace(line.charAt(s))) s++;
-        while (e > s && Character.isWhitespace(line.charAt(e - 1))) e--;
+        while (s < e && isWs(line.charAt(s))) s++;
+        while (e > s && isWs(line.charAt(e - 1))) e--;
         if (s >= e) return;
 
         String text = line.substring(s, e);
@@ -349,10 +369,27 @@ public final class DdotMarkdownPreviewRenderer {
         list.add(new Tok(s, e, type));
     }
 
+    /**
+     * True for what {@link String#trim()} strips plus every Unicode space
+     * separator. {@code Character.isWhitespace} rejects NBSP and NARROW NBSP,
+     * which the spec.s `Zs` class includes.
+     */
+    private static boolean isWs(char c) {
+        return c <= ' ' || Character.getType(c) == Character.SPACE_SEPARATOR;
+    }
+
+    /** {@link String#trim()} over the spec's WS class. */
+    private static String trimWs(String s) {
+        int lo = 0, hi = s.length();
+        while (lo < hi && isWs(s.charAt(lo))) lo++;
+        while (hi > lo && isWs(s.charAt(hi - 1))) hi--;
+        return s.substring(lo, hi);
+    }
+
     private static void addTrimmed(List<Tok> list, String line, String type) {
         int s = 0, e = line.length();
-        while (s < e && Character.isWhitespace(line.charAt(s))) s++;
-        while (e > s && Character.isWhitespace(line.charAt(e - 1))) e--;
+        while (s < e && isWs(line.charAt(s))) s++;
+        while (e > s && isWs(line.charAt(e - 1))) e--;
         if (s < e) list.add(new Tok(s, e, type));
     }
 

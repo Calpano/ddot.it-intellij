@@ -8,7 +8,7 @@
 // replace the block's inner HTML with role-classed spans.
 //
 // The line/slot model is a faithful port of the corpus-pinned positional
-// tokenizer com.calpano.ddot.highlighting.DdotTokenizer (which mirrors the
+// tokenizer com.calpano.ddot.it.token.DdotTokenizer (which mirrors the
 // TextMate grammar): tokenize each line into {start, end, token} spans, then
 // wrap each span in a role-classed <span>. Normative rules:
 // site/spec/ddot-it-parse.adoc (token counting, the gate, off/on, !!block)
@@ -27,8 +27,15 @@
 
   // --- counted tokens (Parse Spec, "Token Sequences") ---------------------
   // Runs of EXACTLY n, neither preceded nor followed by the same character.
+  // WS per the Parse Spec: TAB plus any Unicode space separator (Zs), so a
+  // NBSP between slots separates exactly like a space. Spelled out rather than
+  // `\p{Zs}` because these sources are compiled without the `u` flag — and it
+  // cannot simply be added, since the `\/` escapes below are invalid in
+  // unicode mode. This class is the full Zs category plus TAB.
+  const WS_SRC =
+    "[\\t\\u0020\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]";
   const DT2_SRC = "(?<!\\.)\\.{2}(?!\\.)";
-  const QUAD_SRC = "(?<!\\.)(?:\\.{4}|\\.{2}[ \\t]+\\.{2})(?!\\.)";
+  const QUAD_SRC = "(?<!\\.)(?:\\.{4}|\\.{2}" + WS_SRC + "+\\.{2})(?!\\.)";
   const CM2_SRC = "(?<!,),,(?!,)";
   const SC2_SRC = "(?<!;);;(?!;)";
 
@@ -51,12 +58,12 @@
   const ON_LINE = new RegExp("(" + CMD_PREFIX_SRC + "on)(?![^\\s?#])");
 
   // A `!!block` opener must END its physical line (block-as-field).
-  const BLOCK_OPENER_SRC = "(" + CMD_PREFIX_SRC + "block)(?:(\\?end=)(\\S+))?[ \\t]*$";
+  const BLOCK_OPENER_SRC = "(" + CMD_PREFIX_SRC + "block)(?:(\\?end=)(\\S+))?" + WS_SRC + "*$";
 
   // A line-initial `,,` or `;;` followed by a meta pair continues the
   // previous logical line as metadata (Parse Spec "block-continuation").
   const META_CONTINUATION = new RegExp(
-    "^[ \\t]*(?:(" + CM2_SRC + ")|(" + SC2_SRC + "))(?=[ \\t]+" + DT2_SRC + ")"
+    "^" + WS_SRC + "*(?:(" + CM2_SRC + ")|(" + SC2_SRC + "))(?=" + WS_SRC + "+" + DT2_SRC + ")"
   );
 
   // QUAD before DT2 so `.. ..` is ONE operator, not two.
@@ -96,8 +103,14 @@
 
   const PROCESSED = "ddotProcessed";
 
+  // WS per the Parse Spec: TAB plus any Unicode space separator (Zs). NBSP is
+  // Zs and is stripped between slots exactly like a space; U+200B and U+FEFF
+  // are Cf, not Zs, so they stay inside the name that contains them.
+  const ZS_RE = /\p{Zs}/u;
+
   function isWhitespace(c) {
-    return c === " " || c === "\t" || c === "\n" || c === "\r" || c === "\f" || c === "\v";
+    return c === " " || c === "\t" || c === "\n" || c === "\r" || c === "\f" || c === "\v"
+        || ZS_RE.test(c);
   }
 
   function escapeHtml(s) {
@@ -170,6 +183,15 @@
     list.push({ start: s, end: e, type: type });
   }
 
+  // A `!!block` opener is valid ONLY in a value position. The spec names four
+  // (Parse Spec "block-as-field"): Subject, Object, MetaObject, and the free
+  // meta text after `,,` ("meta_start"). Relation and MetaRelation hold names,
+  // so a `!!block` there is ordinary in-text command text.
+  function opensBlockIn(phase) {
+    return phase === "subject" || phase === "object"
+      || phase === "meta_obj" || phase === "meta_start";
+  }
+
   // Emit one line as a sequence of slots and operators, starting in `phase`.
   // Mirrors the parse automaton: the object may contain `..`, `;;` separates
   // inline meta pairs only, and a `!!block` that ends the line opens a
@@ -205,14 +227,17 @@
         sepEnd = sepStart + 2;
       }
 
-      // A `!!block` ending the line makes the pending slot a block opener.
-      const bo = findFrom(BLOCK_OPENER_SRC, line, last);
-      if (bo !== null && line.substring(last, bo.index).trim().length === 0
-          && bo.index < m.index) {
-        emitBlockOpener(list, bo);
-        st.opensBlock = true;
-        st.blockEnd = bo[3] !== undefined ? bo[3] : null;
-        return st;
+      // A `!!block` ending the line makes the pending slot a block opener —
+      // but only when that slot is a value position (block-as-field).
+      if (opensBlockIn(phase)) {
+        const bo = findFrom(BLOCK_OPENER_SRC, line, last);
+        if (bo !== null && line.substring(last, bo.index).trim().length === 0
+            && bo.index < m.index) {
+          emitBlockOpener(list, bo);
+          st.opensBlock = true;
+          st.blockEnd = bo[3] !== undefined ? bo[3] : null;
+          return st;
+        }
       }
 
       emitSlot(list, line, last, sepStart, phase);
@@ -233,13 +258,17 @@
       }
     }
 
-    // Trailing slot, or a block opener with no separator after it.
-    const bo = findFrom(BLOCK_OPENER_SRC, line, last);
-    if (bo !== null && line.substring(last, bo.index).trim().length === 0) {
-      emitBlockOpener(list, bo);
-      st.opensBlock = true;
-      st.blockEnd = bo[3] !== undefined ? bo[3] : null;
-      return st;
+    // Trailing slot, or a block opener with no separator after it. The
+    // meta-text position lands here: `… ,, !!block` leaves phase "meta_start"
+    // with nothing but the opener left on the line.
+    if (opensBlockIn(phase)) {
+      const bo = findFrom(BLOCK_OPENER_SRC, line, last);
+      if (bo !== null && line.substring(last, bo.index).trim().length === 0) {
+        emitBlockOpener(list, bo);
+        st.opensBlock = true;
+        st.blockEnd = bo[3] !== undefined ? bo[3] : null;
+        return st;
+      }
     }
     if (line.substring(last).trim().length === 0 && phase === "meta_start") {
       st.opensMeta = true;   // trailing `,,` opened a block

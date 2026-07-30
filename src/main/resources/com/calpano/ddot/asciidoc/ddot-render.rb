@@ -10,7 +10,7 @@
 # When you change this file, regenerate the corpus and update both mirrors.
 #
 # The line/slot model is a direct port of the corpus-pinned positional
-# tokenizer `com.calpano.ddot.highlighting.DdotTokenizer` (which itself
+# tokenizer `com.calpano.ddot.it.token.DdotTokenizer` (which itself
 # mirrors the TextMate grammar): tokenize each line into
 # {start, end, token} spans, then wrap each span in a role-classed <span>.
 # Normative rules: site/spec/ddot-it-parse.adoc (token counting, the gate,
@@ -28,8 +28,12 @@ module DdotIt
     # Runs of EXACTLY n, neither preceded nor followed by the same character.
     # The lookarounds carry the rule: `\.{2}` alone would match the first two
     # dots of `...`, which the tokenization rule forbids.
+    # WS per the Parse Spec: TAB plus any Unicode space separator (Zs). Ruby's
+    # /\s/ is ASCII-only, so a NBSP between slots would survive; the canonical
+    # TextMate tokens strip it exactly like a space.
+    WS_SRC   = '[\t\p{Zs}]'
     DT2_SRC  = '(?<!\.)\.{2}(?!\.)'
-    QUAD_SRC = '(?<!\.)(?:\.{4}|\.{2}[ \t]+\.{2})(?!\.)'
+    QUAD_SRC = "(?<!\\.)(?:\\.{4}|\\.{2}#{WS_SRC}+\\.{2})(?!\\.)"
     CM2_SRC  = '(?<!,),,(?!,)'
     SC2_SRC  = '(?<!;);;(?!;)'
 
@@ -52,11 +56,11 @@ module DdotIt
     ON_LINE  = /(#{CMD_PREFIX_SRC}on)(?![^\s?#])/
 
     # A `!!block` opener must END its physical line (block-as-field).
-    BLOCK_OPENER = /(#{CMD_PREFIX_SRC}block)(?:(\?end=)(\S+))?[ \t]*$/
+    BLOCK_OPENER = /(#{CMD_PREFIX_SRC}block)(?:(\?end=)(\S+))?#{WS_SRC}*$/
 
     # A line-initial `,,` or `;;` followed by a meta pair continues the
     # previous logical line as metadata (Parse Spec "block-continuation").
-    META_CONTINUATION = /\A[ \t]*(?:(#{CM2_SRC})|(#{SC2_SRC}))(?=[ \t]+#{DT2_SRC})/
+    META_CONTINUATION = /\A#{WS_SRC}*(?:(#{CM2_SRC})|(#{SC2_SRC}))(?=#{WS_SRC}+#{DT2_SRC})/
 
     # QUAD before DT2 so `.. ..` is ONE operator, not two.
     SIGNIFICANT = /#{QUAD_SRC}|#{DT2_SRC}|#{CM2_SRC}|#{SC2_SRC}/
@@ -158,17 +162,26 @@ module DdotIt
         { s: s, e: e, t: t }
       end
 
+      # WS per the Parse Spec: TAB plus any Unicode space separator (Zs).
+      # Ruby's /\s/ and String#strip are ASCII-only, so NBSP would survive
+      # inside a slot; the canonical TextMate tokens strip it like a space.
+      WS_RE = /[\s\p{Zs}]/
+
+      def trim_ws(s)
+        s.gsub(/\A[\s\p{Zs}]+|[\s\p{Zs}]+\z/, '')
+      end
+
       def add_trimmed(list, line, type)
         s = 0
         e = line.length
-        s += 1 while s < e && line[s] =~ /\s/
-        e -= 1 while e > s && line[e - 1] =~ /\s/
+        s += 1 while s < e && line[s] =~ WS_RE
+        e -= 1 while e > s && line[e - 1] =~ WS_RE
         list << tok(s, e, type) if s < e
       end
 
       def starts_with_operator(line)
         m = SIGNIFICANT.match(line)
-        m && line[0...m.begin(0)].strip.empty?
+        m && trim_ws(line[0...m.begin(0)]).empty?
       end
 
       def tokenize(lines)
@@ -179,7 +192,7 @@ module DdotIt
         in_meta   = false   # inside a ,, … ,, block
 
         lines.each_with_index do |line, i|
-          trimmed = line.strip
+          trimmed = trim_ws(line)
 
           # --- excluded region: inactive, NO role spans --------------------
           if off
@@ -248,7 +261,7 @@ module DdotIt
           end
 
           # --- `!!block` alone on a line = a SUBJECT opener ------------------
-          if (bo = BLOCK_OPENER.match(line)) && line[0...bo.begin(0)].strip.empty?
+          if (bo = BLOCK_OPENER.match(line)) && trim_ws(line[0...bo.begin(0)]).empty?
             emit_block_opener(toks[i], bo)
             verbatim = true
             block_end = bo[3]
@@ -271,6 +284,15 @@ module DdotIt
 
       def toks_add_block_end(list, line)
         add_trimmed(list, line, 'block-end')
+      end
+
+      # A `!!block` opener is valid ONLY in a value position. The spec names
+      # four (Parse Spec "block-as-field"): Subject, Object, MetaObject, and
+      # the free meta text after `,,` (:meta_start). Relation and MetaRelation
+      # hold names, so a `!!block` there is ordinary in-text command text.
+      def opens_block_in?(phase)
+        phase == :subject || phase == :object ||
+          phase == :meta_obj || phase == :meta_start
       end
 
       # Emit one line as a sequence of slots and operators, starting in
@@ -308,13 +330,16 @@ module DdotIt
             sep_end = sep_start + 2
           end
 
-          # A `!!block` ending the line makes the pending slot a block opener.
-          bo = BLOCK_OPENER.match(line, last)
-          if bo && line[last...bo.begin(0)].strip.empty? && bo.begin(0) < m.begin(0)
-            emit_block_opener(list, bo)
-            st[:opens_block] = true
-            st[:block_end]   = bo[3]
-            return st
+          # A `!!block` ending the line makes the pending slot a block opener —
+          # but only when that slot is a value position (block-as-field).
+          if opens_block_in?(phase)
+            bo = BLOCK_OPENER.match(line, last)
+            if bo && trim_ws(line[last...bo.begin(0)]).empty? && bo.begin(0) < m.begin(0)
+              emit_block_opener(list, bo)
+              st[:opens_block] = true
+              st[:block_end]   = bo[3]
+              return st
+            end
           end
 
           emit_slot(list, line, last, sep_start, phase)
@@ -338,15 +363,19 @@ module DdotIt
                   end
         end
 
-        # Trailing slot, or a block opener with no separator after it.
-        bo = BLOCK_OPENER.match(line, last)
-        if bo && line[last...bo.begin(0)].strip.empty?
-          emit_block_opener(list, bo)
-          st[:opens_block] = true
-          st[:block_end]   = bo[3]
-          return st
+        # Trailing slot, or a block opener with no separator after it. The
+        # meta-text position lands here: `… ,, !!block` leaves phase
+        # :meta_start with nothing but the opener left on the line.
+        if opens_block_in?(phase)
+          bo = BLOCK_OPENER.match(line, last)
+          if bo && trim_ws(line[last...bo.begin(0)]).empty?
+            emit_block_opener(list, bo)
+            st[:opens_block] = true
+            st[:block_end]   = bo[3]
+            return st
+          end
         end
-        if line[last..].strip.empty? && phase == :meta_start
+        if trim_ws(line[last..]).empty? && phase == :meta_start
           st[:opens_meta] = true   # trailing `,,` opened a block
         else
           emit_slot(list, line, last, line.length, phase)
@@ -365,8 +394,8 @@ module DdotIt
       def emit_slot(list, line, lo, hi, phase)
         s = lo
         e = hi
-        s += 1 while s < e && line[s] =~ /\s/
-        e -= 1 while e > s && line[e - 1] =~ /\s/
+        s += 1 while s < e && line[s] =~ WS_RE
+        e -= 1 while e > s && line[e - 1] =~ WS_RE
         return if s >= e
 
         text = line[s...e]
