@@ -47,8 +47,8 @@
         </context>
     </template>
     <template name="ddot-meta"
-              value=",, $KEY$ :: $VALUE$"
-              description="Add metadata to a triple"
+              value=",, ..$KEY$.. $VALUE$"
+              description="Add metadata to a triple: ,, ..key.. value"
               toReformat="false"
               toShortenFQNames="false">
         <variable name="KEY" expression="" defaultValue="&quot;key&quot;" alwaysStopAt="true"/>

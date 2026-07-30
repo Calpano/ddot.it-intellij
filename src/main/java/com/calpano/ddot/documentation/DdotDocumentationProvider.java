@@ -54,8 +54,9 @@ public final class DdotDocumentationProvider extends AbstractDocumentationProvid
         }
         if (line.contains(",,")) {
             return """
-                    <b>Metadata</b>: <code>triple ,, key :: value</code><br>
-                    Adds metadata or annotations to a triple.
+                    <b>Metadata</b>: <code>triple ,, ..key.. value</code><br>
+                    Adds metadata or annotations to a triple. Several inline pairs are
+                    separated by <code>;;</code>: <code>,, ..k1.. v1 ;; ..k2.. v2</code>.
                     """;
         }
         return null;
