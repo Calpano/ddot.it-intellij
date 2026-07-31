@@ -226,7 +226,9 @@
         <dependency>
             <groupId>com.calpano.ddot.it</groupId>
             <artifactId>ddot-core</artifactId>
-            <version>0.1.0</version>
+            <!-- Keep in lockstep with ../ddot.it-java-core's <version>; it is a release version, so a
+                 stale pin here silently resolves a cached jar from ~/.m2. -->
+            <version>0.1.1</version>
         </dependency>
 
         <!--
