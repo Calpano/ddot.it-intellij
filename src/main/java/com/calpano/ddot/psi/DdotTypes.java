@@ -24,7 +24,4 @@ public interface DdotTypes {
     IElementType ENTITY = new DdotElementType("ENTITY");
     IElementType METADATA = new DdotElementType("METADATA");
 
-    TokenSet SEPARATORS = TokenSet.create(DOT_DOT, DOT_DOT_DOT_DOT);
-    TokenSet COMMENTS = TokenSet.EMPTY;
-    TokenSet STRINGS = TokenSet.EMPTY;
 }

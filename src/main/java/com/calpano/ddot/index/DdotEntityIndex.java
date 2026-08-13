@@ -1,10 +1,11 @@
 package com.calpano.ddot.index;
 
 import com.calpano.ddot.completion.DdotRecentRelations;
-import com.calpano.ddot.it.token.DdotTokenizer;
+import it.ddot.core.token.DdotTokenizer;
+import it.ddot.core.token.Token;
 import com.calpano.ddot.psi.DdotFile;
 import com.calpano.ddot.psi.DdotPsiUtil;
-import com.calpano.ddot.it.token.DdotRole;
+import it.ddot.core.DdotSlot;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
@@ -17,6 +18,7 @@ import com.intellij.util.indexing.ID;
 import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.KeyDescriptor;
+import it.ddot.core.token.TokenName;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -85,8 +87,8 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
         for (DdotEmbeds.Chunk chunk : chunks) {
             // A chunk that begins inside a host-level `!!off` region is parsed
             // with that state: its excluded lines contribute no vocabulary.
-            for (DdotTokenizer.Token t : DdotTokenizer.tokenize(chunk.text(), chunk.startsOff())) {
-                if (t.token().equals("command")) {
+            for (Token t : DdotTokenizer.tokenize(chunk.text(), chunk.startsOff())) {
+                if (t.tokenName() == TokenName.COMMAND) {
                     // Command names go to their own pool — kept OUT of the
                     // s/p/o vocabulary (a command is not an entity name), but
                     // harvested for command completion.
@@ -98,10 +100,10 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
                 }
                 String name = t.text();
                 if (name.isEmpty() || name.contains("::")) continue;
-                String pool = switch (t.token()) {
-                    case "subject" -> SUBJECTS;
-                    case "relation" -> PREDICATES;
-                    case "object" -> OBJECTS;
+                String pool = switch (t.tokenName()) {
+                    case TokenName.SUBJECT -> SUBJECTS;
+                    case TokenName.RELATION ->  PREDICATES;
+                    case TokenName.OBJECT -> OBJECTS;
                     // Meta names get their OWN pools. Folding them into P/O would
                     // still answer most queries, but a name used only in a meta
                     // position — the common case for annotation vocabulary like
@@ -109,8 +111,8 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
                     // and the PSI layer cannot supply it either: its role model
                     // has one coarse META, so the in-file tier is always empty
                     // for these two slots.
-                    case "meta-relation" -> META_RELATIONS;
-                    case "meta-object" -> META_OBJECTS;
+                    case TokenName.META_RELATION -> META_RELATIONS;
+                    case TokenName.META_OBJECT -> META_OBJECTS;
                     // Free meta text is prose, not vocabulary; operators,
                     // commands and excluded regions are not names.
                     default -> null;
@@ -189,14 +191,15 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
      * in {@link com.calpano.ddot.completion.DdotKgraphService} boosts
      * type-appropriate names rather than suppressing the rest.
      */
-    private static @NotNull List<String> poolsFor(@NotNull DdotRole role) {
+    private static @NotNull List<String> poolsFor(@NotNull DdotSlot role) {
         return switch (role) {
             case SUBJECT -> List.of(SUBJECTS, OBJECTS, META_OBJECTS, PREDICATES, META_RELATIONS);
-            case PREDICATE -> List.of(PREDICATES, META_RELATIONS);
+            case RELATION -> List.of(PREDICATES, META_RELATIONS);
             case OBJECT -> List.of(OBJECTS, SUBJECTS, META_OBJECTS, PREDICATES, META_RELATIONS);
             case META_RELATION -> List.of(META_RELATIONS, PREDICATES);
             case META_OBJECT -> List.of(META_OBJECTS, OBJECTS, SUBJECTS, META_RELATIONS, PREDICATES);
-            case META -> List.of();
+            case META_START -> List.of();
+            case META_NEXT -> List.of();
         };
     }
 
@@ -205,7 +208,7 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
      * empty set in dumb mode (indexes unavailable) — callers fall back to the
      * current file's live names.
      */
-    public static @NotNull Set<String> projectNames(@NotNull Project project, @NotNull DdotRole role) {
+    public static @NotNull Set<String> projectNames(@NotNull Project project, @NotNull DdotSlot role) {
         Set<String> out = new HashSet<>();
         for (String pool : poolsFor(role)) out.addAll(poolCounts(project, pool).keySet());
         return out;
@@ -297,7 +300,7 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
      * </ol>
      * Each name appears once, at its highest applicable tier.
      */
-    public static @NotNull List<Ranked> ranked(@NotNull DdotFile file, @NotNull DdotRole role) {
+    public static @NotNull List<Ranked> ranked(@NotNull DdotFile file, @NotNull DdotSlot role) {
         // namesByRole keeps duplicates, so it doubles as the live occurrence
         // count for this file — the index lags unsaved edits.
         Map<String, Integer> inFileCounts = new HashMap<>();
@@ -309,7 +312,7 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
         // slot whose catalog admits it. The PSI is the live source (the index
         // lags unsaved edits), and its coarse META role covers both meta slots.
         Set<String> sameFile = new HashSet<>(inFile);
-        for (DdotRole r : List.of(DdotRole.SUBJECT, DdotRole.PREDICATE, DdotRole.OBJECT, DdotRole.META)) {
+        for (DdotSlot r : List.of(DdotSlot.SUBJECT, DdotSlot.RELATION, DdotSlot.OBJECT, DdotSlot.META_START)) {
             if (r != role) sameFile.addAll(DdotPsiUtil.namesByRole(file, r));
         }
 
@@ -327,7 +330,7 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
 
         // Recency (ranking key 3) applies to the relation-LIKE slots — the
         // inline relation and the meta relation alike.
-        boolean relationLike = role == DdotRole.PREDICATE || role == DdotRole.META_RELATION;
+        boolean relationLike = role == DdotSlot.RELATION || role == DdotSlot.META_RELATION;
         List<String> recent = relationLike
                 ? DdotRecentRelations.getInstance(file.getProject()).recent(RECENT_SLOTS)
                 : List.of();

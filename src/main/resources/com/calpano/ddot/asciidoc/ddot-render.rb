@@ -5,12 +5,12 @@
 # CANONICAL source of the golden corpus's `expected.body.html` files
 # (`../ddot.it/test-data/regenerate-html.rb` runs this file). Two mirrors must
 # produce byte-identical output for every corpus case:
-#   - Java:  com.calpano.ddot.it.render.DdotHtmlRenderer#body
+#   - Java:  it.ddot.core.html.DdotHtmlRenderer#body
 #   - JS:    src/main/resources/preview/ddot-preview.js (renderBody)
 # When you change this file, regenerate the corpus and update both mirrors.
 #
 # The line/slot model is a direct port of the corpus-pinned positional
-# tokenizer `com.calpano.ddot.it.token.DdotTokenizer` (which itself
+# tokenizer `it.ddot.core.token.DdotTokenizer` (which itself
 # mirrors the TextMate grammar): tokenize each line into
 # {start, end, token} spans, then wrap each span in a role-classed <span>.
 # Normative rules: site/spec/ddot-it-parse.adoc (token counting, the gate,
@@ -64,6 +64,9 @@ module DdotIt
 
     # QUAD before DT2 so `.. ..` is ONE operator, not two.
     SIGNIFICANT = /#{QUAD_SRC}|#{DT2_SRC}|#{CM2_SRC}|#{SC2_SRC}/
+
+    # `;;` alone, for finding where an inline meta entry ends.
+    SC2_ONLY = /#{SC2_SRC}/
 
     # THE GATE (How-To-Highlight D5): a line is ddot.it only when it carries a
     # complete operator skeleton — two DT2, or one DT4 / `.. ..`. A lone `..`
@@ -297,12 +300,15 @@ module DdotIt
 
       # Emit one line as a sequence of slots and operators, starting in
       # `phase`. Mirrors the parse automaton: the object may contain `..`,
-      # `;;` separates inline meta pairs only, and a `!!block` that ends the
+      # `;;` separates inline meta entries, and a `!!block` that ends the
       # line opens a verbatim region.
       def emit_line(list, line, phase, in_block)
         st = { opens_block: false, opens_meta: false, block_end: nil }
         last = 0
         scan = 0
+        # Inside a MetaTextInline / MetaTextBlockLine: the current entry is a note, so every
+        # token up to the next `;;` (inline) or the end of the line (block) is its content.
+        note = false
 
         while (m = SIGNIFICANT.match(line, scan))
           sep       = m[0]
@@ -316,9 +322,26 @@ module DdotIt
 
           # Once in an object-ish phase, `..` is content, not a separator.
           next if !is_comma && !is_semi && (phase == :object || phase == :meta_obj)
-          # `;;` separates inline meta pairs ONLY; inside a `,,` block it is
-          # ordinary content (28-semicolon-in-meta-block).
-          next if is_semi && (in_block || phase != :meta_obj)
+          # `;;` separates inline meta ENTRIES, unconditionally: it ends a free-text
+          # note (:meta_start) exactly as it ends a pair's object (:meta_obj), with no
+          # rule about what follows (36-inline-meta-notes, 37-inline-meta-mixed).
+          # Outside the meta part, and in a :meta_rel, it is plain text; inside a `,,`
+          # block newlines separate the entries, so it is ordinary content there
+          # (28-semicolon-in-meta-block).
+          next if is_semi && (in_block || !%i[meta_start meta_next meta_obj].include?(phase))
+
+          # :meta_start decides per ENTRY whether it is a pair or a note. A leading `..`
+          # opens a pair only if `[a MetaTripleInline derives]` — the automaton's one
+          # lookahead, bounded by the entry — otherwise that same `..` is the note's first
+          # character (`,, ..bla` is the note `..bla`, not a dangling relation). Anything
+          # else — text, `,,`, `!!` — starts a note too, and once a note has started only
+          # `;;` leaves it: MetaTextInline self-loops on `DT2 | DT4 | CM2 | EM2 | TX`.
+          if !is_semi && !note && %i[meta_start meta_next].include?(phase)
+            note = is_comma ||
+                   !trim_ws(line[last...sep_start]).empty? ||
+                   !meta_pair_derives?(line, sep_end, is_quad, entry_end(line, sep_start, in_block))
+          end
+          next if note && !is_semi
           next if is_comma && phase != :object
 
           # The relation-closing operator is always a plain `..`, never the
@@ -345,7 +368,7 @@ module DdotIt
           emit_slot(list, line, last, sep_start, phase)
           sep_type = if is_comma then 'meta-delim'
                      elsif is_semi then 'meta-separator'
-                     elsif %i[meta_start meta_rel meta_obj].include?(phase) || in_block
+                     elsif %i[meta_start meta_next meta_rel meta_obj].include?(phase) || in_block
                        'meta-doubledot'
                      else
                        'doubledot'
@@ -357,10 +380,15 @@ module DdotIt
                   when :subject    then is_quad ? :object : :relation
                   when :relation   then :object
                   when :object     then is_comma ? :meta_start : :object
-                  when :meta_start then is_quad ? :meta_obj : :meta_rel
+                  # `;;` starts the next entry in :meta_next, NOT :meta_start: the two admit
+                  # the same things, but only :meta_start can still turn into a block opener, so
+                  # a line ending in `,, ;;` must not be mistaken for one.
+                  when :meta_start, :meta_next
+                    then is_semi ? :meta_next : (is_quad ? :meta_obj : :meta_rel)
                   when :meta_rel   then :meta_obj
-                  when :meta_obj   then is_semi ? :meta_start : :meta_obj
+                  when :meta_obj   then is_semi ? :meta_next : :meta_obj
                   end
+          note = false if is_semi   # a fresh entry begins after every `;;`
         end
 
         # Trailing slot, or a block opener with no separator after it. The
@@ -381,6 +409,48 @@ module DdotIt
           emit_slot(list, line, last, line.length, phase)
         end
         st
+      end
+
+      # Where the inline meta entry starting at `from` ends: at the next `;;`, or at the end
+      # of the line if there is none. In a `,,` block NL is the separator and `;;` is content,
+      # so the entry is the whole line. This is the bound on the lookahead below — an entry
+      # ends at the next SC2 or NL, so the guard never has to look past one entry.
+      def entry_end(line, from, in_block)
+        return line.length if in_block
+
+        m = SC2_ONLY.match(line, from)
+        m ? m.begin(0) : line.length
+      end
+
+      # The automaton's one guard, `[a MetaTripleInline derives]`: does the marker just
+      # consumed — ending at `marker_end`, within the entry ending at `entry_end_pos` —
+      # actually open a meta pair? A QuadDot needs only a non-empty object; a DoubleDot needs
+      # a non-empty MetaRelation, a closing `..`, and a non-empty object after it. When this
+      # is false the marker is the first character of a note — `MetaEntryInline` is an ORDERED
+      # choice with MetaTextInline last.
+      def meta_pair_derives?(line, marker_end, quad, entry_end_pos)
+        return false if marker_end > entry_end_pos
+        return !trim_ws(line[marker_end...entry_end_pos]).empty? if quad
+
+        scan = marker_end
+        while (m = SIGNIFICANT.match(line, scan))
+          return false if m.begin(0) >= entry_end_pos
+
+          s = m[0]
+          # `,,` and `;;` are ordinary content in a MetaRelation (`Name`) and, in a block, in
+          # the object too; only a `..` can close the relation.
+          if s == ',,' || s == ';;'
+            scan = m.end(0)
+            next
+          end
+          # A spaced `.. ..` closes with its LEADING `..`, the same demotion the caller applies
+          # in the relation slot (20-object-dotdot); a literal `....` does not.
+          spaced_quad = s.length != 4 && (s.include?(' ') || s.include?("\t"))
+          close_end = spaced_quad ? m.begin(0) + 2 : m.end(0)
+          return !trim_ws(line[marker_end...m.begin(0)]).empty? &&
+                 !trim_ws(line[close_end...entry_end_pos]).empty?
+        end
+        false
       end
 
       def emit_block_opener(list, bo)
@@ -408,7 +478,7 @@ module DdotIt
                  when :object     then 'object'
                  when :meta_rel   then 'meta-relation'
                  when :meta_obj   then 'meta-object'
-                 else                  'meta-text'   # :meta_start — text after `,,` with no `..`
+                 else                  'meta-text'   # :meta_start/:meta_next — entry text with no `..`
                  end
                end
         list << tok(s, e, type)

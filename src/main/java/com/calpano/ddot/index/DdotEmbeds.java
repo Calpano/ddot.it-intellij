@@ -1,5 +1,10 @@
 package com.calpano.ddot.index;
 
+import it.ddot.core.io.DdotEventExporter;
+import it.ddot.core.token.DdotTokenizer;
+import it.ddot.core.token.PreCommand;
+import it.ddot.core.token.Token;
+import it.ddot.core.token.TokenName;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,8 +28,8 @@ import java.util.regex.Pattern;
  * </ul>
  *
  * <p>Each returned chunk is the inner ddot text, ready for
- * {@link com.calpano.ddot.it.token.DdotTokenizer#tokenize(String)} or
- * {@link com.calpano.ddot.it.event.DdotEventExporter#parse}.
+ * {@link DdotTokenizer#tokenize(String)} or
+ * {@link DdotEventExporter#parse}.
  */
 public final class DdotEmbeds {
 
@@ -36,8 +41,8 @@ public final class DdotEmbeds {
      * the HOST text (typically a host-language comment, e.g. AsciiDoc's
      * `+// https://ddot.it/off+`) — or left open by a previous chunk — excludes
      * the chunk's content until a matching `on`. Consumers pass the flag to
-     * {@link com.calpano.ddot.it.token.DdotTokenizer#tokenize(String, boolean)}
-     * or {@link com.calpano.ddot.it.event.DdotEventExporter#parse(String, String, String, boolean)}.
+     * {@link DdotTokenizer#tokenize(String, boolean)}
+     * or {@link DdotEventExporter#parse(String, String, String, boolean)}.
      */
     public record Chunk(@NotNull String text, boolean startsOff) {}
 
@@ -116,11 +121,11 @@ public final class DdotEmbeds {
      */
     private static boolean chunkEndState(String chunk, boolean startOff) {
         boolean off = startOff;
-        for (com.calpano.ddot.it.token.DdotTokenizer.Token t
-                : com.calpano.ddot.it.token.DdotTokenizer.tokenize(chunk, startOff)) {
-            if (!"command".equals(t.token())) continue;
-            if (com.calpano.ddot.it.token.DdotTokenizer.isOffCommand(t.text())) off = true;
-            else if (com.calpano.ddot.it.token.DdotTokenizer.isOnCommand(t.text())) off = false;
+        for (Token t
+                : DdotTokenizer.tokenize(chunk, startOff)) {
+            if (t.tokenName() != TokenName.COMMAND) continue;
+            if (PreCommand.isOffCommand(t.text())) off = true;
+            else if (PreCommand.isOnCommand(t.text())) off = false;
         }
         return off;
     }

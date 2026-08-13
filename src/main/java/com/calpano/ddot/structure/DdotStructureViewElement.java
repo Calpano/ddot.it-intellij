@@ -4,7 +4,7 @@ import com.calpano.ddot.psi.DdotEntity;
 import com.calpano.ddot.psi.DdotFile;
 import com.calpano.ddot.psi.DdotOffRegions;
 import com.calpano.ddot.psi.DdotPsiUtil;
-import com.calpano.ddot.it.token.DdotRole;
+import it.ddot.core.DdotSlot;
 import com.intellij.ide.projectView.PresentationData;
 import com.intellij.ide.structureView.StructureViewTreeElement;
 import com.intellij.ide.util.treeView.smartTree.TreeElement;
@@ -68,7 +68,7 @@ public final class DdotStructureViewElement implements StructureViewTreeElement 
         List<TreeElement> children = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (DdotEntity e : DdotPsiUtil.allEntities(file)) {
-            if (e.getRole() != DdotRole.SUBJECT) continue;
+            if (e.getRole() != DdotSlot.SUBJECT) continue;
             // Subject only counts when the line actually opens a triple — i.e. it has
             // at least one separator. Otherwise free-form lines like a title or section
             // header would land in the outline.

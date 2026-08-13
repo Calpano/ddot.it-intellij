@@ -1,7 +1,7 @@
 package com.calpano.ddot.actions;
 
-import com.calpano.ddot.it.event.DdotEvent;
-import com.calpano.ddot.it.event.DdotEventExporter;
+import it.ddot.core.event.DdotEvent;
+import it.ddot.core.io.DdotEventExporter;
 import com.calpano.ddot.psi.DdotFile;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
@@ -14,6 +14,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import it.ddot.core.io.DdotParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public final class ExportJsonAction extends AnAction {
 
         String source = file.getName();
         String kind = file.getLanguage().getID();
-        List<DdotEvent> events = DdotEventExporter.parse(file.getText(), kind, source);
+        List<DdotEvent> events = DdotParser.parse(file.getText(), kind, source);
         String jsonl = DdotEventExporter.toJsonl(events);
         String outName = stripExtension(source) + ".jsonl";
 

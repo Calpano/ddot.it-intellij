@@ -8,7 +8,7 @@
 // replace the block's inner HTML with role-classed spans.
 //
 // The line/slot model is a faithful port of the corpus-pinned positional
-// tokenizer com.calpano.ddot.it.token.DdotTokenizer (which mirrors the
+// tokenizer com.calpano.ddot.it.core.token.DdotTokenizer (which mirrors the
 // TextMate grammar): tokenize each line into {start, end, token} spans, then
 // wrap each span in a role-classed <span>. Normative rules:
 // site/spec/ddot-it-parse.adoc (token counting, the gate, off/on, !!block)
@@ -177,7 +177,8 @@
         object: "object",
         meta_rel: "meta-relation",
         meta_obj: "meta-object",
-        meta_start: "meta-text"   // text after `,,` with no `..`
+        meta_start: "meta-text",  // text opening an entry, with no `..`
+        meta_next: "meta-text"    // …the same, for an entry opened by `;;`
       }[phase];
     }
     list.push({ start: s, end: e, type: type });
@@ -193,6 +194,42 @@
   }
 
   // Emit one line as a sequence of slots and operators, starting in `phase`.
+  // Where the inline meta entry starting at `from` ends: at the next `;;`, or at the
+  // end of the line if there is none. In a `,,` block NL is the separator and `;;` is
+  // content, so the entry is the whole line. This is the bound on the lookahead below.
+  function entryEnd(line, from, inBlock) {
+    if (inBlock) return line.length;
+    const m = findFrom(SC2_SRC, line, from);
+    return m !== null ? m.index : line.length;
+  }
+
+  // The automaton's one guard, `[a MetaTripleInline derives]`: does the marker just
+  // consumed — ending at `markerEnd`, within the entry ending at `entryEndPos` —
+  // actually open a meta pair? A QuadDot needs only a non-empty object; a DoubleDot
+  // needs a non-empty MetaRelation, a closing `..`, and a non-empty object after it.
+  // When false the marker is the first character of a note instead.
+  function metaPairDerives(line, markerEnd, quad, entryEndPos) {
+    if (markerEnd > entryEndPos) return false;
+    if (quad) return line.substring(markerEnd, entryEndPos).trim().length !== 0;
+    const sig = new RegExp(SIGNIFICANT_SRC, "g");
+    sig.lastIndex = markerEnd;
+    let m;
+    while ((m = sig.exec(line)) !== null) {
+      if (m.index >= entryEndPos) return false;
+      const s = m[0];
+      // `,,` and `;;` are ordinary content in a MetaRelation (`Name`) and, in a block,
+      // in the object too; only a `..` can close the relation.
+      if (s === ",," || s === ";;") continue;
+      // A spaced `.. ..` closes with its LEADING `..`, the same demotion applied in the
+      // relation slot (20-object-dotdot); a literal `....` does not.
+      const spacedQuad = s.length !== 4 && (s.indexOf(" ") >= 0 || s.indexOf("\t") >= 0);
+      const closeEnd = spacedQuad ? m.index + 2 : m.index + s.length;
+      return line.substring(markerEnd, m.index).trim().length !== 0
+        && line.substring(closeEnd, entryEndPos).trim().length !== 0;
+    }
+    return false;
+  }
+
   // Mirrors the parse automaton: the object may contain `..`, `;;` separates
   // inline meta pairs only, and a `!!block` that ends the line opens a
   // verbatim region.
@@ -201,6 +238,10 @@
     const sig = new RegExp(SIGNIFICANT_SRC, "g");
     let last = 0;
     let m;
+    // Inside a MetaTextInline / MetaTextBlockLine: the current entry is a note, so
+    // every token up to the next `;;` (inline) or the end of the line (block) is
+    // its content.
+    let note = false;
 
     while ((m = sig.exec(line)) !== null) {
       let sep = m[0];
@@ -213,9 +254,26 @@
 
       // Once in an object-ish phase, `..` is content, not a separator.
       if (!isComma && !isSemi && (phase === "object" || phase === "meta_obj")) continue;
-      // `;;` separates inline meta pairs ONLY; inside a `,,` block it is
-      // ordinary content (28-semicolon-in-meta-block).
-      if (isSemi && (inBlock || phase !== "meta_obj")) continue;
+      // `;;` separates inline meta ENTRIES, unconditionally: it ends a free-text
+      // note ("meta_start") exactly as it ends a pair's object ("meta_obj"), with no
+      // rule about what follows (36-inline-meta-notes, 37-inline-meta-mixed).
+      // Outside the meta part, and in a "meta_rel", it is plain text; inside a `,,`
+      // block newlines separate the entries, so it is content there
+      // (28-semicolon-in-meta-block).
+      if (isSemi && (inBlock || (phase !== "meta_start" && phase !== "meta_next" && phase !== "meta_obj"))) continue;
+
+      // "meta_start"/"meta_next" decide per ENTRY whether it is a pair or a note. A
+      // leading `..` opens a pair only if `[a MetaTripleInline derives]` — the
+      // automaton's one lookahead, bounded by the entry — otherwise that same `..` is
+      // the note's first character (`,, ..bla` is the note `..bla`). Anything else —
+      // text, `,,`, `!!` — starts a note too, and once a note has started only `;;`
+      // leaves it: MetaTextInline self-loops on `DT2 | DT4 | CM2 | EM2 | TX`.
+      if (!isSemi && !note && (phase === "meta_start" || phase === "meta_next")) {
+        note = isComma
+          || line.substring(last, sepStart).trim().length !== 0
+          || !metaPairDerives(line, sepEnd, isQuad, entryEnd(line, sepStart, inBlock));
+      }
+      if (note && !isSemi) continue;
       if (isComma && phase !== "object") continue;
 
       // The relation-closing operator is always a plain `..`, never the
@@ -242,7 +300,7 @@
 
       emitSlot(list, line, last, sepStart, phase);
       const sepType = isComma ? "meta-delim" : isSemi ? "meta-separator"
-        : (phase === "meta_start" || phase === "meta_rel" || phase === "meta_obj" || inBlock)
+        : (phase === "meta_start" || phase === "meta_next" || phase === "meta_rel" || phase === "meta_obj" || inBlock)
           ? "meta-doubledot" : "doubledot";
       list.push({ start: sepStart, end: sepEnd, type: sepType });
       last = sepEnd;
@@ -251,11 +309,16 @@
         case "subject": phase = isQuad ? "object" : "relation"; break;
         case "relation": phase = "object"; break;
         case "object": phase = isComma ? "meta_start" : "object"; break;
-        // The untyped meta form `,, .... obj` skips the meta relation.
-        case "meta_start": phase = isQuad ? "meta_obj" : "meta_rel"; break;
+        // The untyped meta form `,, .... obj` skips the meta relation. `;;` starts the
+        // next entry in "meta_next", NOT "meta_start": the two admit the same things,
+        // but only "meta_start" can still turn into a block opener, so a line ending in
+        // `,, ;;` must not be mistaken for one.
+        case "meta_start":
+        case "meta_next": phase = isSemi ? "meta_next" : (isQuad ? "meta_obj" : "meta_rel"); break;
         case "meta_rel": phase = "meta_obj"; break;
-        case "meta_obj": phase = isSemi ? "meta_start" : "meta_obj"; break;
+        case "meta_obj": phase = isSemi ? "meta_next" : "meta_obj"; break;
       }
+      if (isSemi) note = false;   // a fresh entry begins after every `;;`
     }
 
     // Trailing slot, or a block opener with no separator after it. The

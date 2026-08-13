@@ -1,6 +1,6 @@
 package com.calpano.ddot.psi;
 
-import com.calpano.ddot.it.token.DdotRole;
+import it.ddot.core.DdotSlot;
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
 import com.intellij.psi.ElementManipulators;
@@ -29,7 +29,7 @@ public final class DdotEntity extends ASTWrapperPsiElement implements PsiNamedEl
         return ElementManipulators.handleContentChange(this, name);
     }
 
-    public @NotNull DdotRole getRole() {
+    public @NotNull DdotSlot getRole() {
         return DdotPsiUtil.getRole(this);
     }
 }

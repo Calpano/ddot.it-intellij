@@ -1,8 +1,8 @@
 package com.calpano.ddot.index;
 
-import com.calpano.ddot.it.event.DdotEvent;
-import com.calpano.ddot.it.event.DdotEventExporter;
-import com.calpano.ddot.it.event.DdotTriple;
+import it.ddot.core.event.DdotEvent;
+import it.ddot.core.io.DdotEventExporter;
+import it.ddot.core.event.DdotTriple;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.search.GlobalSearchScope;
@@ -16,6 +16,7 @@ import com.intellij.util.io.DataInputOutputUtil;
 import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.IOUtil;
 import com.intellij.util.io.KeyDescriptor;
+import it.ddot.core.io.DdotParser;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.DataInput;
@@ -43,9 +44,11 @@ public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<
     //    inline meta pairs and untyped meta — so the extracted triples changed.
     // 3: host-level `!!off`/`!!on` (written outside the fenced chunks) now
     //    exclude the chunks they cover, and the off state threads across chunks.
-    private static final int VERSION = 3;
+    // 4: an untyped link (`....` / `.. ..`) now carries DdotVocabulary.LINKS_TO
+    //    as its relation instead of a null predicate, so the stored type of
+    //    every untyped triple changed from "" to "links to".
+    private static final int VERSION = 4;
     private static final String EVENT_KIND = "ddot";
-    private static final String UNTYPED = ""; // serialized sentinel for a null predicate
 
     @Override
     public @NotNull ID<String, List<DdotTriple>> getName() {
@@ -65,7 +68,7 @@ public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<
     static @NotNull List<DdotTriple> extract(String extension, @NotNull CharSequence text, String source) {
         List<DdotTriple> out = new ArrayList<>();
         for (DdotEmbeds.Chunk chunk : DdotEmbeds.extractChunks(extension, text)) {
-            for (DdotEvent e : DdotEventExporter.parse(chunk.text(), EVENT_KIND, source, chunk.startsOff())) {
+            for (DdotEvent e : DdotParser.parse(chunk.text(), EVENT_KIND, source, chunk.startsOff())) {
                 if (e.from.contains("::") || e.to.contains("::")) continue;
                 out.add(new DdotTriple(e.from, e.type, e.to));
             }
@@ -86,7 +89,7 @@ public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<
                 DataInputOutputUtil.writeINT(out, value.size());
                 for (DdotTriple t : value) {
                     IOUtil.writeUTF(out, t.from());
-                    IOUtil.writeUTF(out, t.type() == null ? UNTYPED : t.type());
+                    IOUtil.writeUTF(out, t.type());
                     IOUtil.writeUTF(out, t.to());
                 }
             }
@@ -99,7 +102,7 @@ public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<
                     String from = IOUtil.readUTF(in);
                     String type = IOUtil.readUTF(in);
                     String to = IOUtil.readUTF(in);
-                    list.add(new DdotTriple(from, type.isEmpty() ? null : type, to));
+                    list.add(new DdotTriple(from, type, to));
                 }
                 return list;
             }

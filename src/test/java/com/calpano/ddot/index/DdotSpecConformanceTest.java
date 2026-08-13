@@ -1,7 +1,7 @@
 package com.calpano.ddot.index;
 
-import com.calpano.ddot.it.event.DdotTriple;
-import com.calpano.ddot.it.token.DdotTokenizer;
+import it.ddot.core.event.DdotTriple;
+import it.ddot.core.token.DdotTokenizer;
 import org.junit.Test;
 
 import java.util.List;

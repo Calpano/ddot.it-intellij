@@ -1,6 +1,6 @@
 package com.calpano.ddot.formatter;
 
-import com.calpano.ddot.it.lint.DdotLinter;
+import it.ddot.core.lint.DdotLinter;
 import org.jetbrains.annotations.NotNull;
 
 

@@ -1,6 +1,8 @@
 package com.calpano.ddot.psi;
 
-import com.calpano.ddot.it.token.DdotTokenizer;
+import it.ddot.core.token.DdotTokenizer;
+import it.ddot.core.token.Token;
+import it.ddot.core.token.TokenName;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiDocumentManager;
@@ -88,8 +90,8 @@ public final class DdotOffRegions {
         // command spelling, group-matched without any ?query/#fragment suffix.
         BitSet offCmd = new BitSet(lineCount);
         BitSet onCmd = new BitSet(lineCount);
-        for (DdotTokenizer.Token t : DdotTokenizer.tokenize(text)) {
-            if (!"command".equals(t.token())) continue;
+        for (Token t : DdotTokenizer.tokenize(text)) {
+            if (t.tokenName() != TokenName.COMMAND) continue;
             // Exact-run rule for the `!!` prefix (EM2): in `!!!off` the bang run
             // has length 3, so it is text, not a command. The tokenizer's regex
             // lacks this lookbehind, so guard here on the raw line.

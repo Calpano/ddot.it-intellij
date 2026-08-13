@@ -4,6 +4,7 @@ import com.calpano.ddot.lexer.DdotLexer;
 import com.calpano.ddot.psi.DdotTypes;
 import com.intellij.lexer.Lexer;
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors;
+import com.intellij.openapi.editor.colors.CodeInsightColors;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.openapi.fileTypes.SyntaxHighlighterBase;
 import com.intellij.psi.tree.IElementType;
@@ -75,7 +76,7 @@ public final class DdotSyntaxHighlighter extends SyntaxHighlighterBase {
      * directive token itself) still win because this key sets foreground only.
      */
     public static final TextAttributesKey INACTIVE = TextAttributesKey.createTextAttributesKey(
-            "DDOT_INACTIVE", com.intellij.openapi.editor.colors.CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES);
+            "DDOT_INACTIVE", CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES);
 
     private static final TextAttributesKey[] SEPARATOR_KEYS = {SEPARATOR};
     private static final TextAttributesKey[] METADATA_SEPARATOR_KEYS = {METADATA_SEPARATOR};

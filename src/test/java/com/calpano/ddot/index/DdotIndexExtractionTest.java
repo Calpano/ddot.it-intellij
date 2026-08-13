@@ -1,8 +1,10 @@
 package com.calpano.ddot.index;
 
-import com.calpano.ddot.it.event.DdotEvent;
-import com.calpano.ddot.it.event.DdotEventExporter;
-import com.calpano.ddot.it.event.DdotTriple;
+import it.ddot.core.DdotVocabulary;
+import it.ddot.core.event.DdotEvent;
+import it.ddot.core.io.DdotEventExporter;
+import it.ddot.core.event.DdotTriple;
+import it.ddot.core.io.DdotParser;
 import org.junit.Test;
 
 import java.util.List;
@@ -104,13 +106,13 @@ public final class DdotIndexExtractionTest {
         // block-as-field requires the opener to END its physical line. Here it
         // does not, so `ddot.it/block` is just the object's text — "a Command is
         // a part of the text of the field holding it, not a replacement for it".
-        List<DdotEvent> events = DdotEventExporter.parse(
+        List<DdotEvent> events = DdotParser.parse(
                 "john ..address.. ddot.it/block ,, ..year.. 2123\n", "ddot", "x.ddot");
         assertEquals(1, events.size());
         assertEquals("ddot.it/block", events.get(0).to);
-        assertEquals(1, events.get(0).meta.size());
-        assertEquals("year", events.get(0).meta.get(0).type());
-        assertEquals("2123", events.get(0).meta.get(0).to());
+        assertEquals(1, events.get(0).meta().size());
+        assertEquals("year", events.get(0).meta().get(0).type());
+        assertEquals("2123", events.get(0).meta().get(0).to());
     }
 
     // --- DdotTripleIndex.extract ------------------------------------------
@@ -119,11 +121,11 @@ public final class DdotIndexExtractionTest {
     public void tripleIndexExtractsFullTriples() {
         String src = String.join("\n",
                 "Alice ..likes.. Tea",
-                "Project Eagle .... Moonshot");   // untyped → null predicate
+                "Project Eagle .... Moonshot");   // untyped → DdotVocabulary.LINKS_TO
         List<DdotTriple> triples = DdotTripleIndex.extract("ddot", src, "input.ddot");
         assertEquals(List.of(
                 new DdotTriple("Alice", "likes", "Tea"),
-                new DdotTriple("Project Eagle", null, "Moonshot")), triples);
+                new DdotTriple("Project Eagle", DdotVocabulary.LINKS_TO, "Moonshot")), triples);
     }
 
     @Test

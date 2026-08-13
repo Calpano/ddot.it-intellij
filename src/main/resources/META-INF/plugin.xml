@@ -14,10 +14,15 @@
          Update on retarget; otherwise users on newer IDEs get an "incompatible"
          banner instead of a broken install.
 
-         since-build is 262, not the older 242: the plugin is compiled to Java 21
-         bytecode against the 2026.2 platform, so it cannot load in 2024.2, whose
-         runtime is Java 17. Claiming the wider range would let those users
-         install a plugin that fails at class-load time. -->
+         since-build is 262, not the older 242: 2026.2 (branch 262) is the first
+         platform to run on Java 25, and pom.xml compiles to that level, so the
+         classes cannot load on 242-261 — those all run Java 21. Claiming the
+         wider range would let those users install a plugin that fails at
+         class-load time.
+
+         To widen the range, LOWER pom.xml's <java.version> to the JBR of the new
+         floor in the same commit: dropping to since-build 242 buys 2024.2-2026.2
+         but costs Java 25, since every branch from 242 to 261 runs Java 21. -->
     <idea-version since-build="262" until-build="262.*"/>
 
     <description><![CDATA[
@@ -262,6 +267,27 @@
         <lang.findUsagesProvider
                 language="ddot.it"
                 implementationClass="com.calpano.ddot.refactoring.DdotFindUsagesProvider"/>
+
+        <!--
+            Opt in to the Marketplace Exception Analyzer. Without an errorHandler the IDE's
+            "report" button on a crash dialog has nowhere to send a report originating in a
+            third-party plugin, so exceptions in our code die on the user's machine and we
+            never learn about them. With it, the user is offered "Report to the third-party
+            plugin" and the stack trace lands on
+              https://plugins.jetbrains.com/plugin/31651/edit/exception-analyzer
+            (also reachable from the plugin's Exceptions tab), bucketed into Unresolved /
+            Resolved issues.
+
+            Reporting stays USER-INITIATED: nothing is transmitted unless the user confirms
+            the dialog. What then goes with it is the stack trace plus environment metadata
+            (OS, JVM, IDE build, plugin version, and any attachments the report includes) -
+            worth knowing, since a stack trace from a .ddot file can carry file paths.
+
+            Requires IDE 2023.3+; this plugin targets since-build 262, so that is satisfied.
+            The class lives in the platform, not in our jar, so it must NOT be shaded or
+            relocated. See https://plugins.jetbrains.com/docs/marketplace/exception-analyzer.html
+        -->
+        <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
     </extensions>
 
     <!-- ============================================================

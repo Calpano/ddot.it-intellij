@@ -47,12 +47,12 @@ public final class DdotParserDefinition implements ParserDefinition {
 
     @Override
     public @NotNull TokenSet getCommentTokens() {
-        return DdotTypes.COMMENTS;
+        return TokenSet.EMPTY;
     }
 
     @Override
     public @NotNull TokenSet getStringLiteralElements() {
-        return DdotTypes.STRINGS;
+        return TokenSet.EMPTY;
     }
 
     @Override

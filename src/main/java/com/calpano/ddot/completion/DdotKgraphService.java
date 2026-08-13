@@ -1,15 +1,13 @@
 package com.calpano.ddot.completion;
 
 import com.calpano.ddot.index.DdotEmbeds;
-import com.calpano.ddot.it.event.DdotTriple;
-import com.calpano.ddot.index.DdotTripleIndex;
 import com.calpano.ddot.it.kserver.base.Kendpoint;
 import com.calpano.ddot.it.kserver.impl.mem.Kedge;
 import com.calpano.ddot.it.kserver.impl.mem.Kgraph;
-import com.calpano.ddot.it.source.ISourceLocation;
-import com.calpano.ddot.it.source.ISourceResourceAddress;
-import com.calpano.ddot.it.kserver.triple.TripleEventFromLine;
 import com.calpano.ddot.it.source.handler.TripleEvent2Kgraph;
+import it.ddot.core.event.DdotEvent;
+import it.ddot.core.event.DdotTriple;
+import com.calpano.ddot.index.DdotTripleIndex;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.DumbService;
@@ -19,6 +17,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
+import it.ddot.core.source.ISnippet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -228,11 +227,11 @@ public final class DdotKgraphService implements Disposable {
 
     /** Add one file's triples to {@code g} with provenance keyed by its URL (what removeBySource targets). */
     private static void ingest(@NotNull Kgraph g, @NotNull String url, @NotNull List<DdotTriple> triples) {
+        ISnippet snippet = ISnippet.of(url);
         if (triples.isEmpty()) return;
         TripleEvent2Kgraph sink = new TripleEvent2Kgraph(g);
-        ISourceLocation location = ISourceLocation.of(ISourceResourceAddress.of(url), -1);
         for (DdotTriple t : triples) {
-            sink.accept(new TripleEventFromLine(t.from(), t.type(), t.to(), null, location));
+            sink.accept(new DdotEvent(snippet, t.from(), t.type(), t.to(), -1));
         }
     }
 }

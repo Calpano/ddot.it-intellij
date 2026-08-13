@@ -2,7 +2,7 @@
 #
 # ddot.it AsciidoctorJ extension — role-aware preview rendering for ddot
 # listing blocks. Mirrors the role assignment in
-# `com.calpano.ddot.it.render.DdotHtmlRenderer` (subject / predicate /
+# `it.ddot.core.html.DdotHtmlRenderer` (subject / predicate /
 # object / metadata / command) so the AsciiDoc preview matches the editor.
 #
 # Supported block forms (matching `DdotAsciiDocInjector`):

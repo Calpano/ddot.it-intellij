@@ -33,10 +33,19 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <maven.compiler.release>21</maven.compiler.release>
+        <!--
+            Bytecode level, fed to maven-compiler-plugin's <release> below. It is
+            NOT a free choice: it must equal the JBR of the OLDEST IDE that
+            plugin.xml's since-build claims, or the plugin installs and then dies
+            with UnsupportedClassVersionError at class-load time. 2026.2 (branch
+            262) is the first platform on Java 25; 242 through 261 are all Java 21.
+            Widening since-build therefore means LOWERING this in the same commit.
+            `release` alone is deliberate — it pins the API signatures too, so a
+            Java 25 call cannot slip into a build targeting 21. Setting the
+            maven.compiler.source/target pair as well would be redundant at best
+            and silently contradictory at worst.
+        -->
+        <java.version>25</java.version>
 
         <!-- IntelliJ IDEA Community baseline. Update to retarget. -->
         <intellij.version>2026.2</intellij.version>
@@ -215,8 +224,8 @@
 
         <!--
             The zero-dependency ddot.it core: the corpus-pinned tokenizer
-            (com.calpano.ddot.it.token) and the triple-event model + exporter
-            (com.calpano.ddot.it.event), shared verbatim with graphinout's reader-ddot.
+            (com.calpano.ddot.it.core.token) and the triple-event model + exporter
+            (com.calpano.ddot.it.core.event), shared verbatim with graphinout's reader-ddot.
             Highlighting, completion, both file indexes and the JSON export action all
             call it directly, so it is declared EXPLICITLY here and not merely inherited
             through the ddot.it-javalib facade below. It brings only jspecify
@@ -224,11 +233,11 @@
             relocation in the shaded jar — nothing in it can clash with the platform.
         -->
         <dependency>
-            <groupId>com.calpano.ddot.it</groupId>
-            <artifactId>ddot-core</artifactId>
+            <groupId>it.ddot</groupId>
+            <artifactId>ddotit-core</artifactId>
             <!-- Keep in lockstep with ../ddot.it-java-core's <version>; it is a release version, so a
                  stale pin here silently resolves a cached jar from ~/.m2. -->
-            <version>0.1.1</version>
+            <version>0.2.1</version>
         </dependency>
 
         <!--
@@ -238,9 +247,9 @@
             the javalib do not propagate.
         -->
         <dependency>
-            <groupId>com.calpano.ddot.it</groupId>
-            <artifactId>ddot.it-javalib</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <groupId>it.ddot</groupId>
+            <artifactId>ddotit-javalib</artifactId>
+            <version>0.2.0</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.graphinout</groupId>
@@ -900,7 +909,7 @@
                             <relocations>
                                 <!--
                                     Only THIRD-PARTY packages are relocated. Our own
-                                    com.calpano.* — including com.calpano.ddot.it.token /
+                                    com.calpano.* — including com.calpano.ddot.it.core.token /
                                     .event from ddot-core — is bundled verbatim: it has no
                                     dependency the platform could clash with (jspecify only,
                                     annotations), and relocating it would rename the very

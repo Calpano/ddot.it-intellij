@@ -2,7 +2,7 @@ package com.calpano.ddot.completion;
 
 import com.calpano.ddot.completion.DdotContext.DocState;
 import com.calpano.ddot.completion.DdotContext.State;
-import com.calpano.ddot.it.token.DdotRole;
+import it.ddot.core.DdotSlot;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -24,7 +24,7 @@ public final class DdotSlotAtCursorTest {
                 expected, DdotContext.stateAtCursor(beforeCursor, docState));
     }
 
-    private static void assertRole(DdotRole expected, String beforeCursor) {
+    private static void assertRole(DdotSlot expected, String beforeCursor) {
         assertEquals("role for <" + beforeCursor + ">",
                 expected, DdotContext.slotAtCursor(beforeCursor));
     }
@@ -47,7 +47,7 @@ public final class DdotSlotAtCursorTest {
     public void cm2MidSubjectIsContent() {
         // parse.adoc: Subject --> Subject : WS | CM2 | SC2 | EM2 | TX
         assertState(State.SUBJECT, "Ac,,me ");
-        assertRole(DdotRole.SUBJECT, "Ac,,me ");
+        assertRole(DdotSlot.SUBJECT, "Ac,,me ");
     }
 
     @Test
@@ -55,7 +55,7 @@ public final class DdotSlotAtCursorTest {
         // A line-initial `,,` may still be subject text: query `s`.
         assertState(State.MAYBE_BLOCK_OPEN, ",,");
         assertState(State.MAYBE_BLOCK_OPEN, ",, ");
-        assertRole(DdotRole.SUBJECT, ",,");
+        assertRole(DdotSlot.SUBJECT, ",,");
         // The `,,` turned out to be subject text…
         assertState(State.SUBJECT, ",,x");
         assertState(State.SUBJECT, ",, more");
@@ -72,8 +72,8 @@ public final class DdotSlotAtCursorTest {
         assertState(State.RELATION, "a ..works at");
         // CM2 mid-relation is content.
         assertState(State.RELATION, "a ..w,,x");
-        assertRole(DdotRole.PREDICATE, "a ..");
-        assertRole(DdotRole.PREDICATE, "a ..w");
+        assertRole(DdotSlot.RELATION, "a ..");
+        assertRole(DdotSlot.RELATION, "a ..w");
         // DT4 after a non-empty relation cannot be a triple.
         assertState(State.NOT_A_TRIPLE, "a ..w....");
     }
@@ -86,9 +86,9 @@ public final class DdotSlotAtCursorTest {
         assertState(State.OBJECT_START, "a .... ");
         assertState(State.TRIPLE_OBJECT, "a .. .. b");
         assertState(State.TRIPLE_OBJECT, "a ....b");
-        assertRole(DdotRole.OBJECT, "a .... ");
+        assertRole(DdotSlot.OBJECT, "a .... ");
         // With the caret between the two dot pairs: an empty Relation slot.
-        assertRole(DdotRole.PREDICATE, "a .. ");
+        assertRole(DdotSlot.RELATION, "a .. ");
     }
 
     @Test
@@ -98,7 +98,7 @@ public final class DdotSlotAtCursorTest {
         // An object may contain `..` and `....`.
         assertState(State.TRIPLE_OBJECT, "a ..w.. o .. p");
         assertState(State.TRIPLE_OBJECT, "a ..links to.. ../../b.adoc");
-        assertRole(DdotRole.OBJECT, "a ..w.. o");
+        assertRole(DdotSlot.OBJECT, "a ..w.. o");
         // Empty object followed by `,,` is not a triple (ObjectStart + CM2).
         assertState(State.NOT_A_TRIPLE, "a ..w.. ,,");
         assertRole(null, "a ..w.. ,,");
@@ -122,7 +122,7 @@ public final class DdotSlotAtCursorTest {
     public void metaInlineStates() {
         assertState(State.META_START, "a ..w.. o ,,");
         assertState(State.META_START, "a ..w.. o ,, ");
-        assertRole(DdotRole.META_RELATION, "a ..w.. o ,,");
+        assertRole(DdotSlot.META_RELATION, "a ..w.. o ,,");
         assertState(State.META_RELATION_INLINE, "a ..w.. o ,, ..");
         assertState(State.META_RELATION_INLINE, "a ..w.. o ,, ..k");
         // CM2 mid-meta-relation is content.
@@ -131,7 +131,7 @@ public final class DdotSlotAtCursorTest {
         assertState(State.META_OBJECT_INLINE, "a ..w.. o ,, ..k.. v");
         // CM2 mid-meta-object is content.
         assertState(State.META_OBJECT_INLINE, "a ..w.. o ,, ..k.. v,,w");
-        assertRole(DdotRole.META_OBJECT, "a ..w.. o ,, ..k.. v");
+        assertRole(DdotSlot.META_OBJECT, "a ..w.. o ,, ..k.. v");
         // The untyped meta form skips the meta relation.
         assertState(State.META_OBJECT_INLINE, "a ..w.. o ,, .... ");
     }
@@ -140,7 +140,7 @@ public final class DdotSlotAtCursorTest {
     public void metaNextInline() {
         assertState(State.META_NEXT_INLINE, "a ..w.. o ,, ..k.. v ;;");
         assertState(State.META_NEXT_INLINE, "a ..w.. o ,, ..k.. v ;; ");
-        assertRole(DdotRole.META_RELATION, "a ..w.. o ,, ..k.. v ;;");
+        assertRole(DdotSlot.META_RELATION, "a ..w.. o ,, ..k.. v ;;");
         assertState(State.META_RELATION_INLINE, "a ..w.. o ,, ..k.. v ;; ..");
         assertState(State.META_OBJECT_INLINE, "a ..w.. o ,, ..k.. v ;; ....");
         // Text right after `;;` cannot become a pair.
@@ -159,7 +159,7 @@ public final class DdotSlotAtCursorTest {
     @Test
     public void blockFirstLine() {
         assertState(State.BLOCK_FIRST_LINE, "", DocState.BLOCK_FIRST_LINE);
-        assertEquals(DdotRole.META_RELATION, DdotContext.slotAtCursor("", DocState.BLOCK_FIRST_LINE));
+        assertEquals(DdotSlot.META_RELATION, DdotContext.slotAtCursor("", DocState.BLOCK_FIRST_LINE));
         assertState(State.META_RELATION_IN_BLOCK, "..", DocState.BLOCK_FIRST_LINE);
         assertState(State.META_RELATION_IN_BLOCK, "..since", DocState.BLOCK_FIRST_LINE);
         assertState(State.META_OBJECT_IN_BLOCK, "..since.. ", DocState.BLOCK_FIRST_LINE);
@@ -174,7 +174,7 @@ public final class DdotSlotAtCursorTest {
     @Test
     public void blockTripleLine() {
         assertState(State.BLOCK_TRIPLE_LINE, "", DocState.BLOCK_TRIPLE_LINE);
-        assertEquals(DdotRole.META_RELATION, DdotContext.slotAtCursor("", DocState.BLOCK_TRIPLE_LINE));
+        assertEquals(DdotSlot.META_RELATION, DdotContext.slotAtCursor("", DocState.BLOCK_TRIPLE_LINE));
         assertState(State.META_RELATION_IN_BLOCK, "..k", DocState.BLOCK_TRIPLE_LINE);
         assertState(State.META_OBJECT_IN_BLOCK, "..k.. v", DocState.BLOCK_TRIPLE_LINE);
         // `;;` inside a block meta object is content.

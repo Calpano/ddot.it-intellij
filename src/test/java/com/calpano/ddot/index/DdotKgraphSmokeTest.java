@@ -4,8 +4,8 @@ import com.calpano.ddot.it.kserver.base.IKgraph;
 import com.calpano.ddot.it.kserver.impl.mem.Kgraph;
 import com.calpano.ddot.it.kserver.impl.mem.Knode;
 import com.calpano.ddot.it.kserver.impl.mem.Kedge;
-import com.calpano.ddot.it.source.FileResourceAddress;
-import com.calpano.ddot.it.source.ISourceLocation;
+import it.ddot.core.source.FileResourceAddress;
+import it.ddot.core.source.ISourceLocation;
 import org.junit.Test;
 
 import java.nio.file.Path;
