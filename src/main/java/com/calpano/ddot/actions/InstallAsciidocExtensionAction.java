@@ -50,6 +50,12 @@ public final class InstallAsciidocExtensionAction extends AnAction {
      * BlockProcessor / Treeprocessor fallback) and {@code ddot.rb} (the Rouge
      * lexer that lights up {@code [source,ddot]} blocks when the user has
      * {@code :source-highlighter: rouge} set).
+     *
+     * <p>{@code ddot.rb} is <b>not</b> under {@code src/main/resources}: the
+     * build copies it verbatim from the sibling {@code ddot.it-syntax-tools}
+     * checkout (see {@code ddot.rouge-lexer.file} in {@code pom.xml}), where it
+     * is conformance-tested against the shared token corpus. The other two are
+     * owned by this repo.
      */
     private static final String[] FILES = {
             "ddot-render.rb",

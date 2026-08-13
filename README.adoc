@@ -106,7 +106,8 @@ The https://plugins.jetbrains.com/plugin/7391-asciidoc[AsciiDoc plugin] doesn't 
 
 . Install the AsciiDoc plugin if you haven't already, and open your project.
 . *Tools → ddot.it → Install AsciiDoc Preview Extension*.
- This drops `ddot-render.rb` and `ddot-extension.rb` into `<projectRoot>/.asciidoctor/lib/`.
+ This drops `ddot-render.rb`, `ddot.rb` and `ddot-extension.rb` into `<projectRoot>/.asciidoctor/lib/`.
+ `ddot.rb` is the https://github.com/Calpano/ddot.it-syntax-tools[ddot.it-syntax-tools] Rouge lexer, bundled at build time, and highlights `[source,ddot]` blocks in documents that set `:source-highlighter: rouge`.
 . The AsciiDoc plugin shows a banner asking to trust the new extension files. Click *Enable* for both.
 . Open or refresh the AsciiDoc preview.
 

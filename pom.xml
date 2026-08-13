@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.calpano.ddot</groupId>
-    <artifactId>ddot.it-intellij</artifactId>
+    <artifactId>ddotit-intellij</artifactId>
     <version>0.1.3</version>
     <packaging>jar</packaging>
 
@@ -104,6 +104,20 @@
               mvn test -Dddot.test-data.dir=/abs/path/to/test-data
         -->
         <ddot.test-data.dir>${project.basedir}/../ddot.it/test-data</ddot.test-data.dir>
+
+        <!--
+            Sibling checkout of Calpano/ddot.it-syntax-tools, home of the CANONICAL
+            Rouge lexer (`rouge/lib/rouge/lexers/ddot.rb`) that the AsciiDoc preview
+            extension loads for `[source,ddot]` blocks. The lexer is conformance-tested
+            there against ../ddot.it/test-data/cases/*/expected.tokens.json, so it is
+            copied in at build time (see maven-resources-plugin below) rather than
+            hand-mirrored into src/main/resources — a checked-in copy silently rotted
+            behind the canonical one for several spec revisions (;;-separators, verbatim
+            blocks, Unicode WS). Override on the command line:
+              mvn package -Dddot.syntax-tools.dir=/abs/path/to/ddot.it-syntax-tools
+        -->
+        <ddot.syntax-tools.dir>${project.basedir}/../ddot.it-syntax-tools</ddot.syntax-tools.dir>
+        <ddot.rouge-lexer.file>${ddot.syntax-tools.dir}/rouge/lib/rouge/lexers/ddot.rb</ddot.rouge-lexer.file>
     </properties>
 
     <repositories>
@@ -666,6 +680,24 @@
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
 
+        <!--
+            Declared EXPLICITLY (rather than relying on the default single
+            src/main/resources root) because the Rouge lexer is generated into
+            target/generated-resources at `generate-resources`. Naming the roots
+            here — instead of a second copy-resources execution writing straight
+            into target/classes — keeps the copy visible to `mvn process-resources`,
+            to the test classpath and to IntelliJ's own JPS build, and avoids
+            depending on intra-phase execution ordering.
+        -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${project.build.directory}/generated-resources/rouge</directory>
+            </resource>
+        </resources>
+
         <plugins>
             <!--
                 Preserve target/idea-lib across `mvn clean` so we don't repeat
@@ -688,6 +720,90 @@
                         </fileset>
                     </filesets>
                 </configuration>
+            </plugin>
+
+            <!--
+                Fail loudly when the sibling ddot.it-syntax-tools checkout is absent.
+                Without this the copy-resources execution below would silently copy
+                nothing and we would ship a plugin whose AsciiDoc extension raises
+                LoadError on `require_relative 'ddot'` — degrading `[source,ddot]`
+                blocks to unhighlighted text with no build-time signal at all.
+
+                Bound to generate-resources, not validate, so the `mvn -N initialize`
+                bootstrap documented at the top of this file still runs in a checkout
+                that has only this repo.
+
+                antrun rather than maven-enforcer's `requireFilesExist`: that rule
+                reports the file as missing whenever the configured path contains a
+                `..` segment — which the sibling-checkout layout unavoidably produces —
+                even though java.io.File.exists() on the very same string is true.
+                Ant's <available> resolves it correctly.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>require-rouge-lexer</id>
+                        <phase>generate-resources</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target>
+                                <!-- Two steps: <fail> drops its nested text when a
+                                     nested <condition> is also present, printing only
+                                     "condition satisfied". Setting the flag first keeps
+                                     the actionable message. -->
+                                <condition property="ddot.rouge-lexer.missing">
+                                    <not>
+                                        <available file="${ddot.rouge-lexer.file}"/>
+                                    </not>
+                                </condition>
+                                <fail if="ddot.rouge-lexer.missing">
+The canonical ddot.it Rouge lexer was not found at
+  ${ddot.rouge-lexer.file}
+It is copied into the plugin resources at build time, so the build cannot
+continue without it. Clone the sibling repository next to this one:
+  git clone git@github.com:Calpano/ddot.it-syntax-tools.git
+or point an existing checkout at the build:
+  mvn package -Dddot.syntax-tools.dir=/abs/path/to/ddot.it-syntax-tools
+                                </fail>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+                Pull the canonical Rouge lexer into the resource tree that
+                InstallAsciidocExtensionAction reads (/com/calpano/ddot/asciidoc/ddot.rb)
+                and installs into <contentRoot>/.asciidoctor/lib/. The file is used
+                verbatim — no filtering — so what ships is byte-identical to the
+                conformance-tested source.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-rouge-lexer</id>
+                        <phase>generate-resources</phase>
+                        <goals><goal>copy-resources</goal></goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-resources/rouge/com/calpano/ddot/asciidoc</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${ddot.syntax-tools.dir}/rouge/lib/rouge/lexers</directory>
+                                    <includes>
+                                        <include>ddot.rb</include>
+                                    </includes>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>

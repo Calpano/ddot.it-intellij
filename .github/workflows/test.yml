@@ -3,7 +3,10 @@ name: Test
 # Runs the cross-implementation golden tests in PreviewHtmlGoldenTest.
 # The tests compare the Java preview renderer + parser output against
 # fixtures in `../ddot.it/test-data/cases/`, so we sibling-checkout
-# Calpano/ddot.it alongside this repo.
+# Calpano/ddot.it alongside this repo. Calpano/ddot.it-syntax-tools is
+# checked out too: the build copies its canonical Rouge lexer into the
+# plugin resources at `generate-resources` and fails the build if the
+# checkout is missing.
 #
 # IntelliJ's platform jars aren't published as separate Maven
 # artifacts; the pom downloads the IDE zip and unpacks platform jars
@@ -40,6 +43,12 @@ jobs:
         with:
           repository: Calpano/ddot.it
           path: ddot.it
+
+      - name: Checkout ddot.it-syntax-tools (canonical Rouge lexer)
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: Calpano/ddot.it-syntax-tools
+          path: ddot.it-syntax-tools
 
       - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
