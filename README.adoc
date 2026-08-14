@@ -100,16 +100,17 @@ John Doe ..leads.. Project Eagle ,, ..since.. 2025
 
 Recognised fence labels: `ddot`, `ddot.it`, `ddotit`. Colors come from your active editor color scheme — tweak them under _Settings → Editor → Color Scheme → ddot.it_; the preview tracks the change.
 
-=== AsciiDoc — one-time per-project install
+=== AsciiDoc
 
-The https://plugins.jetbrains.com/plugin/7391-asciidoc[AsciiDoc plugin] doesn't expose an extension point for third-party preview renderers, so we ship the preview as an Asciidoctor extension that lives next to your project. One-time install, per project:
+The https://plugins.jetbrains.com/plugin/7391-asciidoc[AsciiDoc plugin] doesn't expose an extension point for third-party preview renderers, and only loads Asciidoctor extensions from `<projectRoot>/.asciidoctor/lib/`. So the preview ships as an Asciidoctor extension that has to live next to your project — but you don't have to put it there yourself:
 
 . Install the AsciiDoc plugin if you haven't already, and open your project.
-. *Tools → ddot.it → Install AsciiDoc Preview Extension*.
- This drops `ddot-render.rb`, `ddot.rb` and `ddot-extension.rb` into `<projectRoot>/.asciidoctor/lib/`.
+. Open any `.adoc` file that contains a ddot block. The plugin drops `ddot-render.rb`, `ddot.rb` and `ddot-extension.rb` into `<projectRoot>/.asciidoctor/lib/` and tells you it did.
  `ddot.rb` is the https://github.com/Calpano/ddot.it-syntax-tools[ddot.it-syntax-tools] Rouge lexer, bundled at build time, and highlights `[source,ddot]` blocks in documents that set `:source-highlighter: rouge`.
-. The AsciiDoc plugin shows a banner asking to trust the new extension files. Click *Enable* for both.
+. The AsciiDoc plugin shows a banner asking to trust the new extension files. Click *Enable* for all three.
 . Open or refresh the AsciiDoc preview.
+
+Nothing is written into projects that have no ddot blocks, and a plugin upgrade refreshes the installed copies on the next open. *Tools → ddot.it → Install AsciiDoc Preview Extension* does the same thing on demand — use it to repair a deleted or hand-edited copy, or to install before writing your first ddot block. To turn the automatic install off, set `ddot.asciidoc.autoinstall` to `false` in _Help → Find Action → Registry_.
 
 After that, `[ddot]` / `[source,ddot]` listing blocks render with role coloring:
 
@@ -144,7 +145,7 @@ Override the palette per document via AsciiDoc attributes (the Markdown side rea
 mvn package
 ----
 
-The plugin zip is at `target/ddot.it-intellij-<version>.zip`. Install it via _Settings → Plugins → ⚙ → Install Plugin from Disk…_ and pick the zip.
+The plugin zip is at `target/ddotit-intellij-<version>.zip`. Install it via _Settings → Plugins → ⚙ → Install Plugin from Disk…_ and pick the zip.
 
 Then open or create a `.ddot` file to try it.
 

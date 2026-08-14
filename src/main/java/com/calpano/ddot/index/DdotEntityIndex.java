@@ -288,6 +288,33 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
     public record Ranked(@NotNull String name, double priority) {}
 
     /**
+     * Roles scanned for locality. {@code META_START} is the PSI's coarse meta
+     * role and stands in for both {@code META_RELATION} and {@code META_OBJECT}.
+     */
+    private static final List<DdotSlot> LOCALITY_ROLES =
+            List.of(DdotSlot.SUBJECT, DdotSlot.RELATION, DdotSlot.OBJECT, DdotSlot.META_START);
+
+    /**
+     * Every name used anywhere in {@code file}, in any slot.
+     *
+     * <p>Read from the PSI, not the index: this is the live picture, so a name
+     * typed a second ago counts even though the index hasn't reindexed the
+     * unsaved document yet.
+     *
+     * <p>Two callers, and they must agree. {@link #ranked} spends it as locality
+     * credit (ranking key 5) — a name used ANYWHERE in this document outranks a
+     * project-only one in every slot whose catalog admits it, not just in the
+     * slot it was used in. The completion contributor spends it on the lookup's
+     * type text, so "Object in file" marks exactly the candidates that got that
+     * credit. Ranking and label would drift apart if each derived its own set.
+     */
+    public static @NotNull Set<String> namesInFile(@NotNull DdotFile file) {
+        Set<String> out = new HashSet<>();
+        for (DdotSlot r : LOCALITY_ROLES) out.addAll(DdotPsiUtil.namesByRole(file, r));
+        return out;
+    }
+
+    /**
      * Project-wide completion candidates for {@code role}, ranked as the
      * Autocomplete Specification prescribes — by <em>query slot</em> first
      * (the {@link #poolsFor} catalog order), then same-file before other-file —
@@ -307,14 +334,8 @@ public final class DdotEntityIndex extends FileBasedIndexExtension<String, Map<S
         for (String name : DdotPsiUtil.namesByRole(file, role)) inFileCounts.merge(name, 1, Integer::sum);
         Set<String> inFile = inFileCounts.keySet();
 
-        // Locality (ranking key 5) is same-FILE, not same-file-and-same-role: a
-        // name used ANYWHERE in this document gets the locality credit in every
-        // slot whose catalog admits it. The PSI is the live source (the index
-        // lags unsaved edits), and its coarse META role covers both meta slots.
-        Set<String> sameFile = new HashSet<>(inFile);
-        for (DdotSlot r : List.of(DdotSlot.SUBJECT, DdotSlot.RELATION, DdotSlot.OBJECT, DdotSlot.META_START)) {
-            if (r != role) sameFile.addAll(DdotPsiUtil.namesByRole(file, r));
-        }
+        Set<String> sameFile = namesInFile(file);
+        sameFile.addAll(inFile);
 
         // Each name is credited to the FIRST catalog pool that holds it.
         List<String> pools = poolsFor(role);

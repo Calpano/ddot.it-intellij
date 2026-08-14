@@ -1006,7 +1006,29 @@ or point an existing checkout at the build:
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.6.0</version>
+                <version>3.6.2</version>
+                <!--
+                    Shade rewrites bytecode with ASM, so ASM must understand the
+                    class files we just compiled. <release>25</release> emits class
+                    file major version 69, which the ASM bundled with shade does not
+                    read — `mvn package` dies with "Unsupported class file major
+                    version 69" on the first of our own classes. Overriding the
+                    plugin's own dependency is the supported fix; keep this at or
+                    above the ASM release that supports ${java.version}, i.e. bump it
+                    in the same commit that raises the bytecode level.
+                -->
+                <dependencies>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm</artifactId>
+                        <version>9.10.1</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-commons</artifactId>
+                        <version>9.10.1</version>
+                    </dependency>
+                </dependencies>
                 <executions>
                     <execution>
                         <phase>package</phase>

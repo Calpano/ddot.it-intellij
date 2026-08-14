@@ -125,7 +125,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: plugin-zip
-          path: ddot.it-intellij/target/ddot.it-intellij-${{ steps.plugin.outputs.version }}.zip
+          path: ddot.it-intellij/target/ddotit-intellij-${{ steps.plugin.outputs.version }}.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -162,7 +162,7 @@ jobs:
                  "Environments → marketplace-publish → Add secret." >&2
             exit 1
           fi
-          zip="dist/ddot.it-intellij-${PLUGIN_VERSION}.zip"
+          zip="dist/ddotit-intellij-${PLUGIN_VERSION}.zip"
           if [ ! -f "$zip" ]; then
             echo "::error::Plugin zip not found at $zip" >&2
             ls -la dist >&2

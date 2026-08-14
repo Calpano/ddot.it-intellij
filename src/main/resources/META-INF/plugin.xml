@@ -334,14 +334,20 @@
                     description="Export the current ddot.it document as JSONL events to a file next to the source"/>
             <!-- Registered here (not in ddot-asciidoc.xml) so the menu entry
                  is visible regardless of whether the AsciiDoc plugin is
-                 installed yet — the action's whole point is to help with
-                 setting that up. The action itself checks for the AsciiDoc
-                 plugin at runtime. -->
+                 installed yet — otherwise it would appear only after the user
+                 had already done half the setup. The action itself checks for
+                 the AsciiDoc plugin at runtime.
+
+                 Normally unnecessary: DdotAsciidocAutoInstaller installs the
+                 extension by itself when a ddot-bearing .adoc file is opened.
+                 This is the manual override — repair a deleted or hand-edited
+                 copy, install ahead of writing the first ddot block, or just
+                 get told what state the project is in. -->
             <action
                     id="Ddot.InstallAsciidocExtension"
                     class="com.calpano.ddot.actions.InstallAsciidocExtensionAction"
                     text="Install AsciiDoc Preview Extension"
-                    description="Copy ddot-extension.rb into &lt;contentRoot&gt;/.asciidoctor/lib/ so the AsciiDoc preview renders [ddot] blocks with role coloring."/>
+                    description="Reinstall ddot-extension.rb, ddot-render.rb and ddot.rb into &lt;contentRoot&gt;/.asciidoctor/lib/. Usually automatic — use this to repair or force the install."/>
         </group>
     </actions>
 </idea-plugin>

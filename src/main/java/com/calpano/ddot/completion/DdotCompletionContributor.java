@@ -194,7 +194,14 @@ public final class DdotCompletionContributor extends CompletionContributor {
 
     // Line analysis ------------------------------------------------------------
 
-    private static LookupElement entityElement(String entity, DdotSlot role, int replaceStart) {
+    /**
+     * @param inFile whether {@code entity} already appears somewhere in the file being
+     *               edited. Only the type text changes; the ordering credit for the same
+     *               fact is applied upstream, in {@link DdotEntityIndex#ranked}. Telling
+     *               the two apart matters when a name is ambiguous project-wide — "in
+     *               file" says this is the one you have been writing about.
+     */
+    private static LookupElement entityElement(String entity, DdotSlot role, int replaceStart, boolean inFile) {
         String roleLabel = switch (role) {
             case SUBJECT -> "Subject";
             case RELATION -> "Predicate";
@@ -204,7 +211,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
             case META_START, META_NEXT -> "Metadata";
         };
         return LookupElementBuilder.create(entity)
-                .withTypeText(roleLabel + " in project")
+                .withTypeText(roleLabel + (inFile ? " in file" : " in project"))
                 .withIcon(AllIcons.Nodes.Variable)
                 .withInsertHandler((ctx, item) -> {
                     Document doc = ctx.getDocument();
@@ -419,8 +426,11 @@ public final class DdotCompletionContributor extends CompletionContributor {
         }
 
         if (role != null && !beforeMetaOpener && (afterDotDot == null || !prefix.isEmpty())) {
+            // One set for the whole batch: namesInFile walks the PSI, and the
+            // candidate list routinely runs to hundreds of entries.
+            Set<String> localNames = DdotEntityIndex.namesInFile(file);
             for (Candidate c : mergedCandidates(file, role, prefix, contextNames)) {
-                out.add(entityElement(c.name(), role, replaceStart));
+                out.add(entityElement(c.name(), role, replaceStart, localNames.contains(c.name())));
             }
         }
 

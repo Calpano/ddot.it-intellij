@@ -11,20 +11,43 @@
     <extensions defaultExtensionNs="com.intellij">
         <multiHostInjector
                 implementation="com.calpano.ddot.injection.DdotAsciiDocInjector"/>
+
+        <!--
+            Off switch for the auto-install below, for users who would rather not
+            have files appear in their repo (and for support: "set this to false
+            and tell me what the preview does"). The manual Tools action ignores
+            it — asking for the install is consent enough.
+        -->
+        <registryKey
+                key="ddot.asciidoc.autoinstall"
+                defaultValue="true"
+                restartRequired="false"
+                description="ddot.it: automatically install the Asciidoctor preview extension into &lt;contentRoot&gt;/.asciidoctor/lib/ when an AsciiDoc file containing a ddot block is opened."/>
     </extensions>
 
     <!--
         Preview-side rendering for ddot blocks in the AsciiDoc preview pane is
-        delivered via a Ruby AsciidoctorJ extension shipped as a plugin
-        resource (see InstallAsciidocExtensionAction, registered in the main
-        plugin.xml so it stays visible even when the asciidoc plugin isn't
-        installed yet — otherwise the menu entry that helps the user set
-        things up wouldn't appear until they'd already done half the setup).
+        delivered via a Ruby AsciidoctorJ extension shipped as a plugin resource.
+        The asciidoc plugin only picks such extensions up from
+        <contentRoot>/.asciidoctor/lib/, so the files have to be copied into the
+        user's project. DdotAsciidocAutoInstaller does that unprompted the first
+        time a ddot-bearing .adoc file is opened; the Tools action
+        (InstallAsciidocExtensionAction, registered in the main plugin.xml so the
+        entry stays visible even when the asciidoc plugin isn't installed yet)
+        remains for forcing a reinstall and for reporting what happened.
+
+        The listener is registered here rather than in the main plugin.xml so it
+        is never even instantiated without the asciidoc plugin present.
 
         TODO (Option C): once an upstream EP exists for registering
-        AsciidoctorJ extensions from third-party plugins, drop the install
-        action and register the extension directly here. See
-        https://github.com/asciidoctor/asciidoctor-intellij-plugin — file an
+        AsciidoctorJ extensions from third-party plugins, drop both the
+        auto-installer and the action and register the extension directly here.
+        See https://github.com/asciidoctor/asciidoctor-intellij-plugin — file an
         issue/PR for `org.asciidoc.intellij.asciidoctorExtensions`.
     -->
+    <projectListeners>
+        <listener
+                class="com.calpano.ddot.asciidoc.DdotAsciidocAutoInstaller"
+                topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
 </idea-plugin>
