@@ -1,9 +1,9 @@
 package com.calpano.ddot.index;
 
-import com.calpano.ddot.it.kserver.base.IKgraph;
-import com.calpano.ddot.it.kserver.impl.mem.Kgraph;
-import com.calpano.ddot.it.kserver.impl.mem.Knode;
-import com.calpano.ddot.it.kserver.impl.mem.Kedge;
+import it.ddot.core.kbase.IKnowledgeGraph;
+import it.ddot.core.kbase.inmem.Kedge;
+import it.ddot.core.kbase.inmem.Kgraph;
+import it.ddot.core.kbase.inmem.Knode;
 import it.ddot.core.source.FileResourceAddress;
 import it.ddot.core.source.ISourceLocation;
 import org.junit.Test;
@@ -40,7 +40,7 @@ public final class DdotKgraphSmokeTest {
                 new Kgraph.Variable("s"), new Kgraph.Prefix("kn"), new Kgraph.Variable("o"))).size());
 
         // Per-source removal — the incremental-update primitive.
-        IKgraph.RemoveBySourceResult r = g.removeBySource(addr.resourceUri());
+        IKnowledgeGraph.RemoveBySourceResult r = g.removeBySource(addr.resourceUri());
         assertEquals(1, r.edgesRemoved());
         assertTrue(g.pattern(new Kgraph.Pattern(
                 new Kgraph.Variable("s"), new Kgraph.Constant("knows"), new Kgraph.Variable("o"))).isEmpty());

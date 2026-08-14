@@ -84,14 +84,35 @@ public final class AsciidocExtensionInstaller {
     }
 
     /**
-     * @param libDir  the target directory, or {@code null} when we never got that far
-     * @param written names of the files actually written this run, in {@link #FILES} order
-     * @param detail  human-readable cause, set for {@link Status#FAILED}
+     * @param libDir       the target directory, or {@code null} when we never got that far
+     * @param written      names of the files actually written this run, in {@link #FILES} order
+     * @param wasInstalled whether any of our files were already there when this run started —
+     *                     i.e. this was an upgrade rather than a first install
+     * @param detail       human-readable cause, set for {@link Status#FAILED}
      */
     public record Result(@NotNull Status status,
                          @Nullable Path libDir,
                          @NotNull List<String> written,
+                         boolean wasInstalled,
                          @Nullable String detail) {
+    }
+
+    /**
+     * Whether this project already carries our extension, at any version.
+     *
+     * <p>The auto-installer uses this to decide that a refresh is welcome even in a
+     * file with no ddot block: once the files are in the repo, a stale copy is our
+     * problem to fix. A broken one is worse than absent — an extension that raises
+     * during the Treeprocessor pass fails the whole document load, so <em>every</em>
+     * {@code .adoc} in the project stops rendering, ddot content or not.
+     *
+     * <p>Blocking I/O — call off the EDT.
+     */
+    public static boolean isInstalled(@NotNull Project project) {
+        VirtualFile root = pickContentRoot(project);
+        if (root == null || root.getPath() == null) return false;
+        Path libDir = Path.of(root.getPath(), ".asciidoctor", "lib");
+        return FILES.stream().anyMatch(name -> Files.isRegularFile(libDir.resolve(name)));
     }
 
     public static boolean isAsciidocPluginInstalled() {
@@ -114,11 +135,11 @@ public final class AsciidocExtensionInstaller {
      */
     public static @NotNull Result install(@NotNull Project project) {
         if (!isAsciidocPluginInstalled()) {
-            return new Result(Status.NO_ASCIIDOC_PLUGIN, null, List.of(), null);
+            return new Result(Status.NO_ASCIIDOC_PLUGIN, null, List.of(), false, null);
         }
         VirtualFile root = pickContentRoot(project);
         if (root == null) {
-            return new Result(Status.NO_CONTENT_ROOT, null, List.of(), null);
+            return new Result(Status.NO_CONTENT_ROOT, null, List.of(), false, null);
         }
 
         // Stamp the installed copies with the plugin version so users can
@@ -128,6 +149,7 @@ public final class AsciidocExtensionInstaller {
         byte[] stamp = ("# ddot.it plugin version: " + pluginVersion() + "\n").getBytes(StandardCharsets.UTF_8);
 
         Path libDir = Path.of(Objects.requireNonNull(root.getPath()), ".asciidoctor", "lib");
+        boolean wasInstalled = FILES.stream().anyMatch(name -> Files.isRegularFile(libDir.resolve(name)));
         List<String> written = new ArrayList<>();
         try {
             for (String name : FILES) {
@@ -135,7 +157,7 @@ public final class AsciidocExtensionInstaller {
                 byte[] payload;
                 try (InputStream in = AsciidocExtensionInstaller.class.getResourceAsStream(resource)) {
                     if (in == null) {
-                        return new Result(Status.FAILED, libDir, List.copyOf(written),
+                        return new Result(Status.FAILED, libDir, List.copyOf(written), wasInstalled,
                                 "Bundled resource missing: " + resource);
                     }
                     payload = in.readAllBytes();
@@ -157,12 +179,12 @@ public final class AsciidocExtensionInstaller {
                         LocalFileSystem.getInstance().refreshAndFindFileByNioFile(target));
             }
         } catch (IOException ex) {
-            return new Result(Status.FAILED, libDir, List.copyOf(written),
+            return new Result(Status.FAILED, libDir, List.copyOf(written), wasInstalled,
                     "Failed to install extension: " + ex.getMessage());
         }
 
         return new Result(written.isEmpty() ? Status.UP_TO_DATE : Status.INSTALLED,
-                libDir, List.copyOf(written), null);
+                libDir, List.copyOf(written), wasInstalled, null);
     }
 
     private static boolean isUpToDate(Path target, byte[] content) {

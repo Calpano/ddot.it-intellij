@@ -6,7 +6,7 @@
  * from CSS, so the preview doesn't track Light/Darcula automatically;
  * the colors below are tuned for both themes (no pure black/white).
  *
- * Class names mirror com.calpano.ddot.it.render.DdotHtmlRenderer's
+ * Class names mirror it.ddot.core.html.DdotHtmlRenderer's
  * TOKEN_CLASS map (ddot-core).
  *
  * Metadata is FIRST-CLASS CONTENT (Highlight Spec: entity.name.* roots

@@ -1,10 +1,6 @@
 package com.calpano.ddot.completion;
 
 import com.calpano.ddot.index.DdotEmbeds;
-import com.calpano.ddot.it.kserver.base.Kendpoint;
-import com.calpano.ddot.it.kserver.impl.mem.Kedge;
-import com.calpano.ddot.it.kserver.impl.mem.Kgraph;
-import com.calpano.ddot.it.source.handler.TripleEvent2Kgraph;
 import it.ddot.core.event.DdotEvent;
 import it.ddot.core.event.DdotTriple;
 import com.calpano.ddot.index.DdotTripleIndex;
@@ -17,7 +13,11 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
+import it.ddot.core.kbase.Kendpoint;
+import it.ddot.core.kbase.inmem.Kedge;
+import it.ddot.core.kbase.inmem.Kgraph;
 import it.ddot.core.source.ISnippet;
+import it.ddot.core.io.handler.TripleEvent2Kgraph;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

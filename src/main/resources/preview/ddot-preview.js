@@ -8,7 +8,7 @@
 // replace the block's inner HTML with role-classed spans.
 //
 // The line/slot model is a faithful port of the corpus-pinned positional
-// tokenizer com.calpano.ddot.it.core.token.DdotTokenizer (which mirrors the
+// tokenizer it.ddot.core.token.DdotTokenizer (which mirrors the
 // TextMate grammar): tokenize each line into {start, end, token} spans, then
 // wrap each span in a role-classed <span>. Normative rules:
 // site/spec/ddot-it-parse.adoc (token counting, the gate, off/on, !!block)

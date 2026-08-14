@@ -30,14 +30,14 @@ graph: `Knode`s (with stable ids) and `Kedge` n-ary hyperedges (endpoints with
 direction + per-endpoint type), multi-entry language-tagged `Klabel`s, type
 edges, node merging and inference, a slot-based pattern matcher
 (`Constant`/`Variable`/`OneOf`/`Prefix`/`Initials`) and a JSON query engine. An
-`IKbase` groups named graphs with a document-level `@context` namespace map.
+`IKnowledgeBase` groups named graphs with a document-level `@context` namespace map.
 Built from sources by `Source2Kgraph` / `Source2TripleEvents`.
 
 == Feature comparison
 
 [cols="1a,2a,2a", options="header"]
 |===
-| Feature | `DdotEntityIndex` (FileBasedIndex) | javalib KB (`IKgraph`/`IKbase`)
+| Feature | `DdotEntityIndex` (FileBasedIndex) | javalib KB (`IKnowledgeGraph`/`IKnowledgeBase`)
 
 | Primary purpose
 | Completion vocabulary lookup
@@ -69,7 +69,7 @@ Built from sources by `Source2Kgraph` / `Source2TripleEvents`.
 
 | Namespaces / multi-graph
 | No (one flat project vocabulary)
-| `IKbase` = named graphs + `@context` URI-prefix map
+| `IKnowledgeBase` = named graphs + `@context` URI-prefix map
 
 | Query model
 | Exact "all names of role R" + plain case-insensitive prefix

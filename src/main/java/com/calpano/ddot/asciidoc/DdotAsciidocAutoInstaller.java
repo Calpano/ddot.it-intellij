@@ -64,10 +64,21 @@ public final class DdotAsciidocAutoInstaller implements FileEditorManagerListene
         Project project = source.getProject();
         if (!Registry.is(REGISTRY_KEY, true)) return;
         if (!isAsciidoc(file)) return;
-        if (!mentionsDdotBlock(file)) return;
+        // Sniffed here, on the EDT, because the Document is already in memory;
+        // the decision that uses it is made on the pooled thread, where the
+        // filesystem check it may need is allowed.
+        boolean mentionsDdot = mentionsDdotBlock(file);
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             if (project.isDisposed()) return;
+            // A ddot block is what earns us the right to put files in a repo that
+            // has none. Once they ARE there, keeping them current needs no such
+            // permission — and matters most in files with no ddot content at all:
+            // a stale extension that raises during the Treeprocessor pass fails
+            // the whole document load, so every .adoc in the project stops
+            // rendering until the copy is refreshed.
+            if (!mentionsDdot && !AsciidocExtensionInstaller.isInstalled(project)) return;
+
             AsciidocExtensionInstaller.Result result = AsciidocExtensionInstaller.install(project);
             switch (result.status()) {
                 case INSTALLED -> notifyInstalled(project, result);
@@ -82,10 +93,13 @@ public final class DdotAsciidocAutoInstaller implements FileEditorManagerListene
     }
 
     private static void notifyInstalled(Project project, AsciidocExtensionInstaller.Result result) {
+        String what = result.wasInstalled()
+                ? "Updated the preview extension to v" + AsciidocExtensionInstaller.pluginVersion()
+                  + " (" + String.join(", ", result.written()) + ") in " + result.libDir() + "."
+                : "Installed the preview extension (" + String.join(", ", result.written()) + ") into "
+                  + result.libDir() + " so [ddot] blocks render in the AsciiDoc preview.";
         Notification n = new Notification("ddot.it", "ddot.it AsciiDoc preview",
-                "Installed the preview extension (" + String.join(", ", result.written()) + ") into "
-                + result.libDir() + " so [ddot] blocks render in the AsciiDoc preview.\n"
-                + "If the AsciiDoc plugin shows a trust banner, click Enable; then refresh the preview.",
+                what + "\nIf the AsciiDoc plugin shows a trust banner, click Enable; then refresh the preview.",
                 NotificationType.INFORMATION);
         Notifications.Bus.notify(n, project);
     }

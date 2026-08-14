@@ -249,28 +249,12 @@
         <dependency>
             <groupId>it.ddot</groupId>
             <artifactId>ddotit-core</artifactId>
-            <!-- Keep in lockstep with ../ddot.it-java-core's <version>; it is a release version, so a
-                 stale pin here silently resolves a cached jar from ~/.m2. -->
-            <version>0.2.1</version>
+            <!-- Keep in lockstep with ../ddot.it-java-core's <version>. It publishes to no
+                 repository, so this resolves from a local `mvn install` there — a stale pin
+                 silently resolves an older cached jar from ~/.m2 instead of failing. -->
+            <version>0.2.2-SNAPSHOT</version>
         </dependency>
 
-        <!--
-            ddot.it knowledge model (Kbase/Kgraph). Backs project-wide, graph-aware
-            completion queries (see spec-models.adoc). Bundled+shaded like reader-ddot;
-            shares the same graphinout ${graphinout.version} stack. test-scoped logback/junit/truth in
-            the javalib do not propagate.
-        -->
-        <dependency>
-            <groupId>it.ddot</groupId>
-            <artifactId>ddotit-javalib</artifactId>
-            <version>0.2.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.graphinout</groupId>
-                    <artifactId>foundation-emulation</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>annotations</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/annotations.jar</systemPath></dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>app-backend</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/app-backend.jar</systemPath></dependency>
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>eclipse.lsp4j</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/eclipse.lsp4j.jar</systemPath></dependency>
