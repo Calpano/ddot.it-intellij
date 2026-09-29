@@ -1,5 +1,6 @@
 package com.calpano.ddot.structure;
 
+import com.calpano.ddot.psi.DdotEntity;
 import com.intellij.ide.structureView.StructureViewModel;
 import com.intellij.ide.structureView.StructureViewModelBase;
 import com.intellij.ide.structureView.StructureViewTreeElement;
@@ -22,6 +23,6 @@ public final class DdotStructureViewModel extends StructureViewModelBase
 
     @Override
     public boolean isAlwaysLeaf(StructureViewTreeElement element) {
-        return !(element.getValue() instanceof PsiFile);
+        return element.getValue() instanceof DdotEntity;
     }
 }

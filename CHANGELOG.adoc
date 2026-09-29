@@ -1,0 +1,12 @@
+= Changelog
+:toc:
+
+The release notes for this plugin live in the plugin descriptor, so the JetBrains Marketplace and the IDE's plugin page show them too.
+
+[[where]]
+== Where to find them
+
+See the `<change-notes>` element in link:src/main/resources/META-INF/plugin.xml[plugin.xml].
+Entries are listed newest first, one `<h3>` heading per version.
+
+The same notes appear on the plugin's page under _Settings → Plugins → ddot.it → What's New_.

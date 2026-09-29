@@ -3,6 +3,8 @@
 
 Authoring support for *https://ddot.it[ddot.it]*, a minimal text format for typed knowledge graphs. Each line is a triple — `subject ..predicate.. object` — written with double-dot separators.
 
+For a detailed walkthrough of every feature, see the xref:user-guide.adoc[User Guide].
+
 == Facts
 
 License: MIT
@@ -66,7 +68,7 @@ For the full format spec and the canonical event JSON shape, see the https://ddo
 * Simple link → `subject .... object`
 * Continuation → `..predicate.. object`
 * Metadata → `,, content` inline, `,,` at end of line
-* *Structure view* — every distinct subject in the file is listed in the file structure popup (⌘F12 / Ctrl+F12).
+* *Structure view* — AsciiDoc-style section headings (`= Title`, `== Title`, …) form a tree, shown in bold, with the subjects of each section nested underneath; available in the Structure tool window and the file structure popup (⌘F12 / Ctrl+F12).
 * *Folding* — collapses a subject and its continuation lines.
 * *Live templates* — type a prefix, press Tab:
 * `ddot-typed` — typed link
@@ -76,7 +78,6 @@ For the full format spec and the canonical event JSON shape, see the https://ddo
 * `ddot-meta` — metadata pair
 * *Quick documentation* — Ctrl+Q on a triple shows the line shape (typed link / simple link / metadata).
 * *Tools menu* (Tools → ddot.it):
-* *Validate Document* — flag incomplete triples;
 * *Format Document* — same as Reformat Code;
 * *Export as JSON* — emits one https://ddot.it/developer-guide.html#events[triple event] per line (JSONL) with fields `from`, `type`, `to`, `meta`, `kind`, `source`, `location`.
 

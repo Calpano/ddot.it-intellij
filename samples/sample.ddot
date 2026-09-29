@@ -1,26 +1,28 @@
-Sample ddot.it file
+= Sample ddot.it file
 ddot.it
 
+== Typed links
 Project Eagle ..started in.. 2024
 ..doc site.. example.com/docbase/8dcjsid
 
 John Doe ..leads.. Project Eagle ,, ..since.. 2025
 
-Untyped link
+=== Untyped link
 Project Eagle .... Moonshot
 
-Metadata
+== Metadata
 Dirk Hagemann ..works at.. SAP ,,
 ..year.. 2010
 ..fictive.. yes
 ,,
 
-Command
+== Command
 ddot.it/this ..is.. "a sample document"
 
-Toggling processing on/off
+== Toggling processing on/off
 ddot.it/off
 Draft idea ..maybe.. ship it later
 ..maybe not.. who knows
 ddot.it/on
 Active again ..works.. yes
+ 
