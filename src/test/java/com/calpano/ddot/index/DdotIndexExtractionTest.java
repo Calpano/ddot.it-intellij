@@ -122,10 +122,41 @@ public final class DdotIndexExtractionTest {
         String src = String.join("\n",
                 "Alice ..likes.. Tea",
                 "Project Eagle .... Moonshot");   // untyped → DdotVocabulary.LINKS_TO
-        List<DdotTriple> triples = DdotTripleIndex.extract("ddot", src, "input.ddot");
+        List<DdotTripleIndex.Located> triples = DdotTripleIndex.extract("ddot", src, "input.ddot");
         assertEquals(List.of(
-                new DdotTriple("Alice", "likes", "Tea"),
-                new DdotTriple("Project Eagle", DdotVocabulary.LINKS_TO, "Moonshot")), triples);
+                new DdotTripleIndex.Located(new DdotTriple("Alice", "likes", "Tea"), 1),
+                new DdotTripleIndex.Located(new DdotTriple("Project Eagle", DdotVocabulary.LINKS_TO, "Moonshot"), 2)),
+                triples);
+    }
+
+    @Test
+    public void tripleIndexLocatesTriplesInHostFile() {
+        String md = String.join("\n",
+                "# Title",                  // 1
+                "",                         // 2
+                "```ddot",                  // 3
+                "Alice ..likes.. Tea",      // 4
+                "..drinks.. Coffee",        // 5
+                "```",                      // 6
+                "text",                     // 7
+                "```ddot",                  // 8
+                "Bob ..knows.. Alice",      // 9
+                "```");
+        assertEquals(List.of(4, 5, 9), lines(DdotTripleIndex.extract("md", md, "t.md")));
+
+        String adoc = String.join("\n",
+                "= Doc",                    // 1
+                "",                         // 2
+                "[source,ddot]",            // 3
+                "----",                     // 4
+                "",                         // 5
+                "Alice ..likes.. Tea",      // 6
+                "----");
+        assertEquals(List.of(6), lines(DdotTripleIndex.extract("adoc", adoc, "t.adoc")));
+    }
+
+    private static List<Integer> lines(List<DdotTripleIndex.Located> located) {
+        return located.stream().map(DdotTripleIndex.Located::line).toList();
     }
 
     @Test
@@ -135,7 +166,7 @@ public final class DdotIndexExtractionTest {
                 "X ..secret.. Y",
                 "ddot.it/on",
                 "A ..r.. B");
-        assertEquals(List.of(new DdotTriple("A", "r", "B")),
+        assertEquals(List.of(new DdotTripleIndex.Located(new DdotTriple("A", "r", "B"), 4)),
                 DdotTripleIndex.extract("ddot", src, "input.ddot"));
     }
 

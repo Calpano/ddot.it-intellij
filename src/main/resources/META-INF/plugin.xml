@@ -35,9 +35,13 @@
                 on continuation lines.</li>
             <li>Code folding per subject scope</li>
             <li>Structure view: AsciiDoc section headings (<code>= Title</code>, <code>== Title</code>, …) as a bold tree, with subjects nested underneath.</li>
-            <li>Canonical formatter — <code>Reformat Code</code> (⌘⌥L) normalizes spacing.</li>
+            <li>Canonical formatter — <code>Reformat Code</code> (⌘⌥L) makes every triple
+                self-contained (<code>subject ..relation.. object</code>) with balanced spacing.</li>
             <li>Rename refactoring (Shift+F6) renames every occurrence in the file.</li>
             <li>Find Usages (Alt+F7) on any entity.</li>
+            <li>Entity popup: hover a subject, relation or object to see its relations and
+                inverse relations across the project; click an item to jump to where the
+                triple is stated.</li>
             <li>Live templates: <code>ddot-typed</code>, <code>ddot-link</code>,
                 <code>ddot-property</code>, <code>ddot-continue</code>, <code>ddot-meta</code>.</li>
             <li>Tools menu: <i>Format Document</i>, <i>To Full Triples</i> (expand
@@ -63,6 +67,24 @@
                 regions are left out.</li>
             <li>Subjects are now deduplicated per section instead of per file,
                 so a subject used in two sections appears under both.</li>
+            <li><b>Entity popup.</b> Hovering a subject, relation or object — in a
+                <code>.ddot</code> file or a ddot block in Markdown/AsciiDoc — shows
+                what the project knowledge graph states about it:
+                <code>rel &#8594; obj1, obj2</code> per relation, and
+                <code>&#8594; rel: x, y</code> for the inverse direction
+                <code>(x, rel, entity)</code>. Every item links to where the triple is
+                stated; with several places, a chooser lists them. Hovering a
+                relation lists the triples that use it. Alt+Enter on an entity
+                (<i>Show what the project states about …</i>) opens the same popup on
+                demand. Unsaved edits are included.</li>
+            <li><b>Reformat makes every triple self-contained.</b> <i>Reformat Code</i>
+                and <i>Format Document</i> now also give each continuation line its
+                inherited subject (<code>..p.. o</code> &#8594; <code>s ..p.. o</code>) before
+                normalizing spacing. Metadata blocks, <code>ddot.it/off</code> regions,
+                <code>!!block</code> bodies and prose are left alone. <i>To Full
+                Triples</i> now uses the spec parser to find continuation lines.</li>
+            <li>The triple index now records the line each triple is stated on
+                (index version 5, rebuilt automatically).</li>
         </ul>
         <h3>0.1.3</h3>
         <ul>
@@ -263,6 +285,14 @@
         <lang.documentationProvider
                 language="ddot.it"
                 implementationClass="com.calpano.ddot.documentation.DdotDocumentationProvider"/>
+
+        <!-- Alt+Enter on an entity: the entity popup, independent of hover. -->
+        <intentionAction>
+            <language>ddot.it</language>
+            <className>com.calpano.ddot.documentation.DdotShowFactsIntention</className>
+            <category>ddot.it</category>
+            <skipBeforeAfter>true</skipBeforeAfter>
+        </intentionAction>
 
         <!-- Live templates contributed under the DDOT context (file type ddot.it). -->
         <defaultLiveTemplates file="/liveTemplates/ddot.xml"/>

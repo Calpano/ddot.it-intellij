@@ -63,10 +63,10 @@ For the full format spec and the canonical event JSON shape, see the https://ddo
 * Picking a subject auto-inserts `..` and surfaces predicates; picking a predicate auto-inserts `..` and surfaces objects.
 * On a fresh line after a complete triple, suggestions auto-open with `..rel..`-form predicates.
 * When the cursor sits right after `..`, predicates show as `..rel..` items whose range absorbs the existing `..` (no doubled dots on accept).
-* *Canonical formatter* (Code → Reformat Code, ⌘⌥L / Ctrl+Alt+L):
+* *Canonical formatter* (Code → Reformat Code, ⌘⌥L / Ctrl+Alt+L) — every triple becomes self-contained, with balanced spacing:
+* Continuation lines get their inherited subject: `..predicate.. object` → `subject ..predicate.. object`
 * Typed link → `subject ..predicate.. object`
 * Simple link → `subject .... object`
-* Continuation → `..predicate.. object`
 * Metadata → `,, content` inline, `,,` at end of line
 * *Structure view* — AsciiDoc-style section headings (`= Title`, `== Title`, …) form a tree, shown in bold, with the subjects of each section nested underneath; available in the Structure tool window and the file structure popup (⌘F12 / Ctrl+F12).
 * *Folding* — collapses a subject and its continuation lines.
@@ -76,7 +76,7 @@ For the full format spec and the canonical event JSON shape, see the https://ddo
 * `ddot-property` — typed link with metadata
 * `ddot-continue` — continuation predicate
 * `ddot-meta` — metadata pair
-* *Quick documentation* — Ctrl+Q on a triple shows the line shape (typed link / simple link / metadata).
+* *Entity popup* — hover a subject, relation or object (or press Ctrl+Q) to see its relations and inverse relations across the whole project; click any item to jump to where that triple is stated.
 * *Tools menu* (Tools → ddot.it):
 * *Format Document* — same as Reformat Code;
 * *Export as JSON* — emits one https://ddot.it/developer-guide.html#events[triple event] per line (JSONL) with fields `from`, `type`, `to`, `meta`, `kind`, `source`, `location`.

@@ -1,0 +1,215 @@
+= Feature: Rename for ddot.it Entities
+:toc:
+:toclevels: 2
+:icons: font
+:experimental:
+
+This document specifies how renaming a subject, relation or object works in the ddot.it IntelliJ plugin.
+It replaces the current behavior, where kbd:[Shift+F6] renames an entity only within the current file.
+
+[[motivation]]
+== Motivation
+
+The entity popup, completion and the Structure view all work on the project knowledge graph, which combines the triples of every ddot-hosting file in the project.
+A rename that stops at the file boundary leaves the graph split into two nodes: the old name in other files and the new name in this one.
+Rename therefore works on the same scope as the graph.
+
+[[identity]]
+== What gets renamed
+
+[[identity-name]]
+=== One name is one thing
+
+An entity is identified by its exact name: the entity text, trimmed, compared case-sensitively.
+This is the same key the knowledge graph uses for its nodes.
+
+[[identity-roles]]
+=== All roles
+
+A rename covers every role the name plays.
+
+.Roles covered
+* *Subject* — `Project Eagle ..started in.. 2024`
+* *Object* — `John Doe ..leads.. Project Eagle`
+* *Relation* — `John Doe ..leads.. Project Eagle`, when renaming `leads`
+* *Metadata key* — `,, ..since.. 2025`, when renaming `since`
+* *Metadata value* — `,, ..since.. 2025`, when renaming `2025`
+
+A relation and an entity with the same name are the same graph node.
+Renaming `knows` therefore changes both `Alice ..knows.. Bob` and `knows ..is a.. relation`.
+
+[[identity-whole]]
+=== Whole entities only
+
+Only complete entities match.
+Renaming `Project Eagle` leaves `Project Eagle II` and `The Project Eagle team` untouched.
+Text inside an object is never partially replaced.
+
+[[identity-continuations]]
+=== Continuation lines
+
+A continuation line such as `..doc site.. example.com` has no subject written on it.
+It inherits the subject from the line above, so renaming that subject covers it without any change to the continuation line.
+
+[[identity-case]]
+=== Case-insensitive matches
+
+Entities whose names differ from the renamed one only in letter case, such as `project eagle` or `PROJECT EAGLE`, are called _case variants_.
+They are *offered* but never renamed silently.
+
+.The rule
+* Exact matches are always renamed.
+* Case variants are renamed only when the user explicitly includes them.
+* Whether case variants exist, and what happens to them, is stated at every step: in the dialog, in the preview and in the result.
+
+.Where the user sees case variants
+Dialog:: When case variants exist, the dialog shows a notice and a checkbox, see <<flow-dialog>>.
+Preview:: Case variants appear in their own group, _Case variants (not renamed unless checked)_, see <<flow-dialog>>.
+Result:: After the rename, a notification reports what happened to them, see <<flow-after>>.
+
+This lets a rename also clean up inconsistent spellings, without silently merging names that were meant to differ.
+
+[[scope]]
+== Where
+
+Rename is project-wide.
+There is no option to limit it to the current file.
+
+.Files searched
+* `.ddot` files
+* ddot blocks inside Markdown files (```` ```ddot ```` fences)
+* ddot blocks inside AsciiDoc files (`[source,ddot]` and `[ddot]` listings)
+
+These are the same files the knowledge graph is built from.
+Only files in the project content are searched; libraries and excluded folders are not.
+
+.Never changed
+* Free text: titles, notes and section headings, even when they contain the name.
+* Everything between `ddot.it/off` and `ddot.it/on`, or `!!off` and `!!on`.
+* The bodies of `!!block` values.
+* Commands such as `ddot.it/this`, `!!off` and `!!on`; they cannot be renamed.
+
+[[entry-points]]
+== Entry points
+
+.How to start a rename
+* kbd:[Shift+F6] on an entity, in a `.ddot` file or inside an embedded ddot block.
+* _Refactor → Rename…_ from the editor context menu.
+* Rename on a subject node in the Structure view.
+* A _Rename…_ link next to the heading of the entity popup.
+
+[[flow]]
+== How a rename runs
+
+[[flow-dialog]]
+=== Dialog and preview
+
+Rename uses the standard IntelliJ rename dialog.
+
+.Dialog behavior
+* The new-name field starts with the current name.
+* *Refactor* renames all exact matches immediately, plus the case variants if their checkbox is checked.
+* *Preview* opens the find-usages view with every occurrence, grouped by file and line.
+* In the preview, any occurrence can be excluded before running *Do Refactor*.
+
+.Case variants in the dialog
+When case variants exist (see <<identity-case>>), the dialog shows them below the name field, with a count per spelling:
+
+____
+Also found 3 occurrences that differ only in letter case: +
+`project eagle` (2), `PROJECT EAGLE` (1). +
+[ ] Also rename these case variants
+____
+
+* The checkbox is unchecked by default.
+* Unchecked, the case variants are left exactly as they are.
+* Checked, they are renamed to the new name, exactly as typed.
+* When there are no case variants, neither the notice nor the checkbox appears.
+
+.Case variants in the preview
+* They are listed in a separate group, _Case variants (not renamed unless checked)_, below the exact matches.
+* Each occurrence in that group starts checked or unchecked according to the dialog checkbox.
+* Checking or unchecking an occurrence there decides it individually.
+
+[[flow-edit]]
+=== Editing
+
+Only the entity text is replaced.
+Spacing and line structure stay as they are; _Reformat Code_ can tidy them afterwards.
+Occurrences inside embedded blocks are edited in the host Markdown or AsciiDoc file.
+
+[[flow-undo]]
+=== Undo
+
+The whole rename, across all files, is one command and undoes in one step.
+
+[[flow-after]]
+=== After the rename
+
+The entity popup, completion and the Structure view reflect the new name immediately, including in files that are not yet saved.
+
+When case variants existed, a notification states the outcome, for example:
+
+* _Renamed 'Project Eagle' to 'Eagle' in 12 places. 3 case variants were left unchanged: `project eagle` (2), `PROJECT EAGLE` (1)._
+* _Renamed 'Project Eagle' to 'Eagle' in 15 places, including 3 case variants._
+
+[[validation]]
+== Validating the new name
+
+Leading and trailing whitespace is trimmed.
+The dialog refuses a new name, with a message, when it
+
+.Rejected names
+* is empty or contains a line break;
+* contains `..`, `,,` or `::`;
+* starts or ends with `.`;
+* is a command spelling, such as `!!x` or `ddot.it/…`.
+
+These would change how the line parses, so the rename would alter more than the name.
+
+[[merge]]
+== Renaming to an existing name
+
+Renaming to a name that already exists is allowed, because merging two spellings of the same thing, such as `J. Doe` into `John Doe`, is a real use case.
+
+Before such a rename, the dialog warns, for example:
+
+____
+'John Doe' already exists (12 triples).
+The two will be merged into one entity; after saving, the merge cannot be told apart from the original data.
+____
+
+Undo still reverts the merge as long as the command is in the undo history.
+
+[[find-usages]]
+== Find Usages
+
+kbd:[Alt+F7] on an entity uses the same project-wide search as rename, including the case variants in their own group.
+Find Usages and the rename preview therefore always show the same occurrences.
+
+[[tests]]
+== Acceptance tests
+
+.Required test cases
+* Rename across a `.ddot` file, a Markdown block and an AsciiDoc block.
+* Every role: subject, object, relation, metadata key and metadata value.
+* A relation that is also used as an entity is renamed in both places.
+* No partial matches: `Project Eagle II` stays unchanged.
+* Free text, `ddot.it/off` regions and `!!block` bodies stay unchanged.
+* With case variants present, the dialog shows the notice and the unchecked checkbox; without them, it shows neither.
+* Refactor without checking the checkbox leaves every case variant unchanged, and the notification says so.
+* Refactor with the checkbox checked renames the case variants to the new name exactly as typed.
+* In the preview, case variants are in their own group, and single occurrences can be included or excluded.
+* Each rejected name is refused with a message.
+* Renaming to an existing name shows the merge warning.
+* One undo reverts every file.
+* The triples after the rename equal the triples before, with the old name replaced by the new one.
+
+[[decisions]]
+== Decisions
+
+.Decided on 2026-09-30
+Scope:: Project-wide only; no single-file option.
+Metadata:: Metadata keys and values are renamed like relations and entities.
+Existing names:: Renaming to an existing name is allowed, with a merge warning.
+Letter case:: Exact matches are renamed; case variants are offered but renamed only when explicitly included, and the dialog, the preview and the result notification all say so.

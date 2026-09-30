@@ -79,7 +79,7 @@ public final class DdotSpecConformanceTest {
         Map<String, Map<String, Integer>> vocab = DdotEntityIndex.vocabulary("md", md);
         Set<String> predicates = vocab.getOrDefault("P", Map.of()).keySet();
         assertEquals(Set.of("visible"), predicates);
-        List<DdotTriple> triples = DdotTripleIndex.extract("md", md, "test.md");
+        List<DdotTriple> triples = triples(DdotTripleIndex.extract("md", md, "test.md"));
         assertEquals(List.of(new DdotTriple("C", "visible", "D")), triples);
     }
 
@@ -95,7 +95,7 @@ public final class DdotSpecConformanceTest {
         List<DdotEmbeds.Chunk> chunks = DdotEmbeds.extractChunks("md", md);
         assertEquals(1, chunks.size());
         assertTrue(chunks.get(0).startsOff());
-        List<DdotTriple> triples = DdotTripleIndex.extract("md", md, "t.md");
+        List<DdotTriple> triples = triples(DdotTripleIndex.extract("md", md, "t.md"));
         assertEquals(List.of(new DdotTriple("seen", "s", "y")), triples);
     }
 
@@ -123,5 +123,9 @@ public final class DdotSpecConformanceTest {
         assertNull(DdotEntityIndex.commandNameOf("plain"));
         assertNull(DdotEntityIndex.commandNameOf("ddot.it/"));
         assertNull(DdotEntityIndex.commandNameOf("!!"));
+    }
+
+    private static List<DdotTriple> triples(List<DdotTripleIndex.Located> located) {
+        return located.stream().map(DdotTripleIndex.Located::triple).toList();
     }
 }

@@ -7,7 +7,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.psi.PsiDocumentManager;
-import com.calpano.ddot.formatter.DdotLintFormatter;
+import com.calpano.ddot.formatter.DdotReformat;
 import org.jetbrains.annotations.NotNull;
 
 public final class FormatAction extends AnAction {
@@ -29,7 +29,7 @@ public final class FormatAction extends AnAction {
         if (doc == null) return;
 
         String input = doc.getText();
-        String output = DdotLintFormatter.formatDocument(input);
+        String output = DdotReformat.format(input);
         if (output.equals(input)) return;
 
         WriteCommandAction.runWriteCommandAction(file.getProject(), "Format ddot.it Document",

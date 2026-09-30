@@ -2,21 +2,35 @@ package com.calpano.ddot.documentation;
 
 import com.calpano.ddot.psi.DdotEntity;
 import com.intellij.lang.documentation.AbstractDocumentationProvider;
+import com.intellij.lang.documentation.ExternalDocumentationHandler;
 import com.intellij.openapi.editor.Document;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiManager;
+import com.intellij.psi.util.PsiTreeUtil;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Hover/quick-doc provider — explains the line shape (typed link, simple link,
- * or metadata) the cursor is on.
+ * Hover/quick-doc provider. On an entity (subject, relation or object) it shows
+ * what the project knowledge graph states about it — its relations and, inverse,
+ * the relations pointing at it — with every item linking to where the triple is
+ * stated. Elsewhere it explains the line shape (typed link, simple link, or
+ * metadata) the cursor is on.
  */
-public final class DdotDocumentationProvider extends AbstractDocumentationProvider {
+public final class DdotDocumentationProvider extends AbstractDocumentationProvider
+        implements ExternalDocumentationHandler {
 
     @Override
     public @Nullable String generateDoc(PsiElement element, @Nullable PsiElement originalElement) {
         PsiElement target = originalElement != null ? originalElement : element;
         if (target == null) return null;
+
+        DdotEntity entity = element instanceof DdotEntity e ? e : PsiTreeUtil.getParentOfType(target, DdotEntity.class, false);
+        if (entity != null) {
+            String entityDoc = DdotEntityFacts.html(entity);
+            if (entityDoc != null) return entityDoc;
+        }
 
         Document doc = PsiDocumentManager.getInstance(target.getProject()).getDocument(target.getContainingFile());
         if (doc == null) return null;
@@ -29,6 +43,21 @@ public final class DdotDocumentationProvider extends AbstractDocumentationProvid
         String line = doc.getCharsSequence().subSequence(s, e).toString();
 
         return docForLine(line);
+    }
+
+    @Override
+    public boolean handleExternalLink(PsiManager psiManager, String link, PsiElement context) {
+        return link != null && DdotTripleNavigator.follow(psiManager.getProject(), link);
+    }
+
+    @Override
+    public boolean canFetchDocumentationLink(String link) {
+        return false;
+    }
+
+    @Override
+    public @NotNull String fetchExternalDocumentation(@NotNull String link, @Nullable PsiElement element) {
+        return "";
     }
 
     private static @Nullable String docForLine(String line) {
@@ -72,6 +101,6 @@ public final class DdotDocumentationProvider extends AbstractDocumentationProvid
     }
 
     private static String escape(String s) {
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 }

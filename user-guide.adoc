@@ -123,13 +123,38 @@ Type a template prefix and press kbd:[Tab].
 [[formatter]]
 === Canonical formatter
 
-_Code → Reformat Code_ (kbd:[⌘+⌥+L] / kbd:[Ctrl+Alt+L]) normalizes spacing around separators.
+_Code → Reformat Code_ (kbd:[⌘+⌥+L] / kbd:[Ctrl+Alt+L]) makes every triple canonical and self-contained.
+
+.What Reformat does
+* A continuation line gets the subject it inherits from the lines above, so every triple reads `subject ..predicate.. object`.
+* Spacing is balanced: exactly one space on each side of every separator, no leading or trailing whitespace.
+
+.Before and after
+[source,ddot]
+----
+Project Eagle   ..started in..2024
+..doc site..   example.com/docbase/8dcjsid
+   ..owner..Max  ,, ..since.. 2025
+----
+
+[source,ddot]
+----
+Project Eagle ..started in.. 2024
+Project Eagle ..doc site.. example.com/docbase/8dcjsid
+Project Eagle ..owner.. Max ,, ..since.. 2025
+----
 
 .Canonical shapes
 Typed link:: `subject ..predicate.. object`
 Simple link:: `subject .... object`
-Continuation:: `..predicate.. object`
 Metadata:: `,, content` inline, `,,` at the end of a line
+
+.Left as they are
+* Lines inside a multi-line `,,` metadata block, such as `..year.. 2010`: they describe the triple above, not a new one.
+* Everything between `ddot.it/off` and `ddot.it/on`, and the bodies of `!!block` values.
+* Free text, such as titles and notes, and blank lines.
+
+Reformat never changes what the file means: the triples before and after are the same.
 
 [[rename]]
 === Rename and Find Usages
@@ -143,9 +168,53 @@ ddot.it has no declarations: every occurrence of an entity name is equal.
 image::media/screenshots/rename.png[Renaming an entity]
 
 [[docs]]
-=== Quick documentation
+=== Entity popup and quick documentation
 
-kbd:[Ctrl+Q] (kbd:[F1] on macOS) on a line shows its shape: typed link, simple link or metadata.
+Hover over a subject, relation or object to see what the whole project states about it.
+It works in `.ddot` files and in ddot blocks inside Markdown and AsciiDoc files.
+
+.Other ways to open the popup
+* kbd:[Ctrl+Q] (kbd:[F1] on macOS) shows it at the caret.
+* kbd:[Alt+Enter] (_Show Context Actions_) on an entity offers _Show what the project states about '…'_.
+  Use it when the hover popup does not appear, for example because the mouse moved on too early.
+
+The popup is built from the project knowledge graph, which combines the triples of every ddot-hosting file in the project.
+For an entity `foo` it looks like this:
+
+.Popup for `foo`
+[source,text]
+----
+foo
+* rel1 → obj1, obj2, obj3
+* rel2 → ddd, eee
+* → rel3: xxx, yyy
+----
+
+.What the lines mean
+`rel1 → obj1, obj2, obj3`:: the triples `foo ..rel1.. obj1`, `foo ..rel1.. obj2` and so on.
+`→ rel3: xxx, yyy`:: the inverse direction: the triples `xxx ..rel3.. foo` and `yyy ..rel3.. foo`.
+`aaa ..foo.. bbb`:: a triple that uses `foo` as its relation; this is what hovering a relation mostly shows.
+
+An entity on a triple line always gets a popup, even with a single triple.
+If the graph knows nothing about it, the popup says so.
+
+Relations and entities are sorted alphabetically.
+A relation with more than 30 entities shows the first 30 and how many more there are.
+Triples that the graph only infers, such as type inheritance, are not listed, because they are not written anywhere.
+Hovering `ddot.it/this` shows what is stated about the current document.
+
+Every item except the heading is a link to where the triple is stated.
+
+.Where a link leads
+* A relation, such as `rel1`, leads to any of its triples, here any `foo ..rel1.. x`.
+* An entity, such as `obj2`, leads to exactly that triple, here `foo ..rel1.. obj2`.
+* Both ends of a `aaa ..foo.. bbb` line lead to that triple.
+* When there is exactly one such place, the editor jumps to it.
+* When there are several, a chooser lists each place as `path:line` with the line's text.
+
+The popup includes unsaved edits: a triple shows up as soon as it is typed.
+
+Elsewhere on a line, and on free-text words such as titles, the popup shows the line's shape instead: typed link, simple link or metadata.
 
 [[navigation]]
 == Navigating a file
@@ -232,7 +301,7 @@ image::media/screenshots/tools.png[The ddot.it Tools menu]
 
 .Actions
 Format Document:: Same as _Code → Reformat Code_, see <<formatter>>.
-To Full Triples:: Expands continuation lines by repeating the inherited subject, so every line becomes a self-contained triple.
+To Full Triples:: Only the first half of Reformat: expands continuation lines by repeating the inherited subject, without touching spacing.
 Metadata blocks and `ddot.it/off` regions are left untouched.
 Export as JSON:: Writes one link:{url-events}[triple event] per line (JSONL) next to the source file.
 Each event carries the fields `from`, `type`, `to`, `meta`, `kind`, `source` and `location`.

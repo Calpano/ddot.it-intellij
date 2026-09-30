@@ -233,4 +233,61 @@ public final class DdotLintFormatterTest {
                 "tidy ..line.. here", ""), DdotLintFormatter.formatDocument(doc));
     }
 
+
+    // ---- Reformat: full triples + canonical spacing -------------------------------------
+
+    @Test
+    public void reformatFillsInheritedSubjectAndBalancesWhitespace() {
+        String doc = String.join("\n",
+                "Project Eagle   ..started in..2024",
+                "..doc site..   example.com/docbase/8dcjsid",
+                "   ..owner..Max  ,, ..since.. 2025",
+                "",
+                "John Doe  ..leads..   Project Eagle", "");
+        assertEquals(String.join("\n",
+                "Project Eagle ..started in.. 2024",
+                "Project Eagle ..doc site.. example.com/docbase/8dcjsid",
+                "Project Eagle ..owner.. Max ,, ..since.. 2025",
+                "",
+                "John Doe ..leads.. Project Eagle", ""), DdotReformat.format(doc));
+    }
+
+    @Test
+    public void reformatLeavesMetadataBlocksOffRegionsAndProseAlone() {
+        String doc = String.join("\n",
+                "Metadata",
+                "Dirk Hagemann ..works at.. SAP ,,",
+                "..year.. 2010",
+                ",,",
+                "..born in.. Bonn",
+                "ddot.it/off",
+                "Draft ..maybe.. later",
+                "..maybe not.. who knows",
+                "ddot.it/on", "");
+        assertEquals(String.join("\n",
+                "Metadata",
+                "Dirk Hagemann ..works at.. SAP ,,",
+                "..year.. 2010",
+                ",,",
+                "Dirk Hagemann ..born in.. Bonn",
+                "ddot.it/off",
+                "Draft ..maybe.. later",
+                "..maybe not.. who knows",
+                "ddot.it/on", ""), DdotReformat.format(doc));
+    }
+
+    @Test
+    public void reformatIsIdempotentAndMeaningPreservingOverCorpus() throws IOException {
+        List<String> failures = new ArrayList<>();
+        for (Path caseDir : corpusCases()) {
+            String name = caseDir.getFileName().toString();
+            String input = Files.readString(caseDir.resolve("input.ddot"));
+            String once = DdotReformat.format(input);
+            if (!once.equals(DdotReformat.format(once))) failures.add(name + ": not idempotent");
+            String before = DdotEventExporter.toJsonl(DdotParser.parse(input, "ddot", "input.ddot"));
+            String after = DdotEventExporter.toJsonl(DdotParser.parse(once, "ddot", "input.ddot"));
+            if (!before.equals(after)) failures.add(name + "\n  before: " + before + "\n  after:  " + after);
+        }
+        if (!failures.isEmpty()) fail("reformat broke: " + String.join("\n", failures));
+    }
 }

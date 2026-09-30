@@ -43,8 +43,14 @@ public final class DdotEmbeds {
      * the chunk's content until a matching `on`. Consumers pass the flag to
      * {@link DdotTokenizer#tokenize(String, boolean)}
      * or {@link DdotEventExporter#parse(String, String, String, boolean)}.
+     * {@code firstLine} is the 1-based line in the host file on which the chunk's
+     * first line stands, so triples can be located in the host.
      */
-    public record Chunk(@NotNull String text, boolean startsOff) {}
+    public record Chunk(@NotNull String text, boolean startsOff, int firstLine) {
+        public Chunk(@NotNull String text, boolean startsOff) {
+            this(text, startsOff, 1);
+        }
+    }
 
     /** Fence info-string / listing-label aliases accepted as ddot.it. */
     private static final Set<String> ALIASES = Set.of("ddot", "ddot.it", "ddotit");
@@ -150,7 +156,7 @@ public final class DdotEmbeds {
                     j++;
                 }
                 String body = sb.toString();
-                out.add(new Chunk(body, off));
+                out.add(new Chunk(body, off, i + 2));
                 off = chunkEndState(body, off);
                 i = j + 1; // skip past the closing fence (or EOF)
             } else {
@@ -207,7 +213,7 @@ public final class DdotEmbeds {
                     }
                     if (close >= 0) {
                         String body = sb.toString();
-                        out.add(new Chunk(body, off));
+                        out.add(new Chunk(body, off, open + 2));
                         off = chunkEndState(body, off);
                         i = close + 1;
                         continue;

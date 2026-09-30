@@ -17,6 +17,9 @@ import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.IOUtil;
 import com.intellij.util.io.KeyDescriptor;
 import it.ddot.core.io.DdotParser;
+import it.ddot.core.source.ISnippet;
+import it.ddot.core.source.ISourceLocation;
+import it.ddot.core.source.ISourceResourceAddress;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.DataInput;
@@ -34,9 +37,12 @@ import java.util.function.BiConsumer;
  * graph needs. Extraction reuses the canonical {@link DdotEventExporter}; the
  * cross-file assembly into a {@code Kgraph} happens at query time.
  */
-public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<DdotTriple>> {
+public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<DdotTripleIndex.Located>> {
 
-    public static final ID<String, List<DdotTriple>> NAME = ID.create("com.calpano.ddot.triples");
+    /** A triple plus the 1-based line of the host file it is stated on. */
+    public record Located(@NotNull DdotTriple triple, int line) {}
+
+    public static final ID<String, List<Located>> NAME = ID.create("com.calpano.ddot.triples");
 
     // Single key — each file contributes its triple list; the graph reads them all.
     private static final String KEY = "T";
@@ -47,30 +53,32 @@ public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<
     // 4: an untyped link (`....` / `.. ..`) now carries DdotVocabulary.LINKS_TO
     //    as its relation instead of a null predicate, so the stored type of
     //    every untyped triple changed from "" to "links to".
-    private static final int VERSION = 4;
+    // 5: each triple carries the host-file line it is stated on.
+    private static final int VERSION = 5;
     private static final String EVENT_KIND = "ddot";
 
     @Override
-    public @NotNull ID<String, List<DdotTriple>> getName() {
+    public @NotNull ID<String, List<Located>> getName() {
         return NAME;
     }
 
     @Override
-    public @NotNull DataIndexer<String, List<DdotTriple>, FileContent> getIndexer() {
+    public @NotNull DataIndexer<String, List<Located>, FileContent> getIndexer() {
         return inputData -> {
-            List<DdotTriple> triples = extract(inputData.getFile().getExtension(),
+            List<Located> triples = extract(inputData.getFile().getExtension(),
                     inputData.getContentAsText(), inputData.getFileName());
             return triples.isEmpty() ? Map.of() : Map.of(KEY, triples);
         };
     }
 
-    /** All triples in {@code text}, across every embedded ddot chunk. Pure — unit-testable. */
-    static @NotNull List<DdotTriple> extract(String extension, @NotNull CharSequence text, String source) {
-        List<DdotTriple> out = new ArrayList<>();
+    /** All triples in {@code text}, across every embedded ddot chunk, with host lines. Pure — unit-testable. */
+    public static @NotNull List<Located> extract(String extension, @NotNull CharSequence text, String source) {
+        List<Located> out = new ArrayList<>();
+        ISnippet snippet = ISnippet.of(EVENT_KIND, ISourceLocation.of(ISourceResourceAddress.of(source), 1));
         for (DdotEmbeds.Chunk chunk : DdotEmbeds.extractChunks(extension, text)) {
-            for (DdotEvent e : DdotParser.parse(chunk.text(), EVENT_KIND, source, chunk.startsOff())) {
+            for (DdotEvent e : DdotParser.parse(chunk.text(), snippet, chunk.startsOff(), chunk.firstLine())) {
                 if (e.from.contains("::") || e.to.contains("::")) continue;
-                out.add(new DdotTriple(e.from, e.type, e.to));
+                out.add(new Located(new DdotTriple(e.from, e.type, e.to), e.startLineInResource()));
             }
         }
         return out;
@@ -82,27 +90,29 @@ public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<
     }
 
     @Override
-    public @NotNull DataExternalizer<List<DdotTriple>> getValueExternalizer() {
+    public @NotNull DataExternalizer<List<Located>> getValueExternalizer() {
         return new DataExternalizer<>() {
             @Override
-            public void save(@NotNull DataOutput out, List<DdotTriple> value) throws IOException {
+            public void save(@NotNull DataOutput out, List<Located> value) throws IOException {
                 DataInputOutputUtil.writeINT(out, value.size());
-                for (DdotTriple t : value) {
-                    IOUtil.writeUTF(out, t.from());
-                    IOUtil.writeUTF(out, t.type());
-                    IOUtil.writeUTF(out, t.to());
+                for (Located l : value) {
+                    IOUtil.writeUTF(out, l.triple().from());
+                    IOUtil.writeUTF(out, l.triple().type());
+                    IOUtil.writeUTF(out, l.triple().to());
+                    DataInputOutputUtil.writeINT(out, l.line());
                 }
             }
 
             @Override
-            public List<DdotTriple> read(@NotNull DataInput in) throws IOException {
+            public List<Located> read(@NotNull DataInput in) throws IOException {
                 int n = DataInputOutputUtil.readINT(in);
-                List<DdotTriple> list = new ArrayList<>(n);
+                List<Located> list = new ArrayList<>(n);
                 for (int i = 0; i < n; i++) {
                     String from = IOUtil.readUTF(in);
                     String type = IOUtil.readUTF(in);
                     String to = IOUtil.readUTF(in);
-                    list.add(new DdotTriple(from, type, to));
+                    int line = DataInputOutputUtil.readINT(in);
+                    list.add(new Located(new DdotTriple(from, type, to), line));
                 }
                 return list;
             }
@@ -126,15 +136,15 @@ public final class DdotTripleIndex extends FileBasedIndexExtension<String, List<
 
     /** Feed each indexed file's triples (with its {@link VirtualFile}) to {@code consumer}, project-wide. */
     public static void forEachFile(@NotNull Project project,
-                                   @NotNull BiConsumer<VirtualFile, List<DdotTriple>> consumer) {
+                                   @NotNull BiConsumer<VirtualFile, List<Located>> consumer) {
         FileBasedIndex.getInstance().processValues(NAME, KEY, null,
                 (file, value) -> { consumer.accept(file, value); return true; },
                 GlobalSearchScope.projectScope(project));
     }
 
     /** The triples a single file contributed, from the index (empty if none/not indexed). */
-    public static @NotNull List<DdotTriple> fileTriples(@NotNull Project project, @NotNull VirtualFile file) {
-        List<DdotTriple> triples = FileBasedIndex.getInstance().getFileData(NAME, file, project).get(KEY);
+    public static @NotNull List<Located> fileTriples(@NotNull Project project, @NotNull VirtualFile file) {
+        List<Located> triples = FileBasedIndex.getInstance().getFileData(NAME, file, project).get(KEY);
         return triples != null ? triples : List.of();
     }
 }
