@@ -54,6 +54,7 @@ final class DdotEntityFacts {
         StringBuilder sb = new StringBuilder();
         if (facts.isEmpty() && !DdotPsiUtil.isOnTripleLine(entity)) return null;
         sb.append(DocumentationMarkup.DEFINITION_START).append("<b>").append(escape(entity.getName())).append("</b>")
+                .append(" &nbsp;").append(a(DdotTripleNavigator.renameLink(entity.getName()), "Rename…"))
                 .append(DocumentationMarkup.DEFINITION_END)
                 .append(DocumentationMarkup.CONTENT_START);
         if (facts.isEmpty()) {

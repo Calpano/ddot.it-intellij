@@ -37,8 +37,10 @@
             <li>Structure view: AsciiDoc section headings (<code>= Title</code>, <code>== Title</code>, …) as a bold tree, with subjects nested underneath.</li>
             <li>Canonical formatter — <code>Reformat Code</code> (⌘⌥L) makes every triple
                 self-contained (<code>subject ..relation.. object</code>) with balanced spacing.</li>
-            <li>Rename refactoring (Shift+F6) renames every occurrence in the file.</li>
-            <li>Find Usages (Alt+F7) on any entity.</li>
+            <li>Rename refactoring (Shift+F6) renames an entity across the whole project,
+                in every role and in embedded blocks; case variants are offered, never
+                renamed silently.</li>
+            <li>Find Usages (Alt+F7) on any entity, project-wide.</li>
             <li>Entity popup: hover a subject, relation or object to see its relations and
                 inverse relations across the project; click an item to jump to where the
                 triple is stated.</li>
@@ -83,6 +85,18 @@
                 normalizing spacing. Metadata blocks, <code>ddot.it/off</code> regions,
                 <code>!!block</code> bodies and prose are left alone. <i>To Full
                 Triples</i> now uses the spec parser to find continuation lines.</li>
+            <li><b>Project-wide rename.</b> Shift+F6 on a subject, relation or object —
+                in a <code>.ddot</code> file, an embedded block, the Structure view, or
+                via <i>Rename…</i> in the entity popup — renames every exact occurrence
+                across <code>.ddot</code> files and ddot blocks in Markdown and AsciiDoc,
+                in every role including metadata keys and values. Prose,
+                <code>ddot.it/off</code> regions, <code>!!block</code> bodies and commands
+                are never touched. Names that differ only in letter case are listed in
+                the dialog (unchecked checkbox) and in their own preview group, and a
+                notification reports what happened to them. Renaming to an existing
+                name warns about the merge. Invalid names are refused. One undo
+                reverts every file. Find Usages (Alt+F7) uses the same search.
+                Specified in <code>feature-rename.adoc</code>.</li>
             <li>The triple index now records the line each triple is stated on
                 (index version 5, rebuilt automatically).</li>
         </ul>
@@ -305,8 +319,13 @@
                 forClass="com.calpano.ddot.psi.DdotEntity"
                 implementationClass="com.calpano.ddot.psi.DdotEntityManipulator"/>
 
-        <renamePsiElementProcessor
-                implementation="com.calpano.ddot.refactoring.DdotEntityRenameProcessor"/>
+        <!-- Project-wide rename (feature-rename.adoc): our handler, and a veto that
+             keeps the generic element rename from competing with it. -->
+        <renameHandler implementation="com.calpano.ddot.refactoring.DdotRenameHandler"/>
+        <vetoRenameCondition implementation="com.calpano.ddot.refactoring.DdotRenameVeto"/>
+        <findUsagesHandlerFactory implementation="com.calpano.ddot.refactoring.DdotFindUsagesHandlerFactory"/>
+
+        <notificationGroup id="ddot.it" displayType="BALLOON"/>
 
         <lang.findUsagesProvider
                 language="ddot.it"

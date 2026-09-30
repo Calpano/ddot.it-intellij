@@ -1,6 +1,7 @@
 package com.calpano.ddot.documentation;
 
 import com.calpano.ddot.completion.DdotKgraphService;
+import com.calpano.ddot.refactoring.DdotRenameHandler;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
@@ -32,6 +33,7 @@ import java.util.Map;
 final class DdotTripleNavigator {
 
     static final String PROTOCOL = "ddot-triple:";
+    static final String RENAME_PROTOCOL = "ddot-rename:";
 
     private DdotTripleNavigator() {}
 
@@ -39,8 +41,18 @@ final class DdotTripleNavigator {
         return PROTOCOL + encode(subject) + "/" + encode(relation) + "/" + encode(object);
     }
 
-    /** Follow a {@link #link}; {@code false} when {@code url} is not one. Runs on the EDT. */
+    /** A link that starts the project-wide rename of {@code name}. */
+    static @NotNull String renameLink(@NotNull String name) {
+        return RENAME_PROTOCOL + encode(name);
+    }
+
+    /** Follow a {@link #link} or {@link #renameLink}; {@code false} when {@code url} is neither. Runs on the EDT. */
     static boolean follow(@NotNull Project project, @NotNull String url) {
+        if (url.startsWith(RENAME_PROTOCOL)) {
+            String name = decode(url.substring(RENAME_PROTOCOL.length()));
+            if (name != null) DdotRenameHandler.start(project, name, null);
+            return true;
+        }
         if (!url.startsWith(PROTOCOL)) return false;
         String[] slots = url.substring(PROTOCOL.length()).split("/", -1);
         if (slots.length != 3) return false;

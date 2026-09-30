@@ -159,11 +159,39 @@ Reformat never changes what the file means: the triples before and after are the
 [[rename]]
 === Rename and Find Usages
 
-ddot.it has no declarations: every occurrence of an entity name is equal.
+ddot.it has no declarations: every occurrence of an entity name is equal, and one name is one node of the project knowledge graph.
+Rename therefore works across the whole project.
+The full specification is in xref:feature-rename.adoc[Feature: Rename].
 
-.Refactorings
-* *Rename* (kbd:[Shift+F6]) on any entity renames every occurrence of that name in the file.
-* *Find Usages* (kbd:[Alt+F7]) lists every occurrence of an entity.
+.Starting a rename
+* kbd:[Shift+F6] or _Refactor → Rename…_ on a subject, relation or object, in a `.ddot` file or inside an embedded ddot block.
+* Rename on a subject node in the Structure view.
+* The _Rename…_ link in the entity popup.
+
+.What is renamed
+* Every exact occurrence of the name, in `.ddot` files and in ddot blocks in Markdown and AsciiDoc files.
+* All roles: subject, relation, object, metadata key and metadata value.
+* Only whole entities: renaming `Project Eagle` leaves `Project Eagle II` alone.
+* Never free text such as titles, nothing between `ddot.it/off` and `ddot.it/on`, no `!!block` bodies and no commands.
+
+[[rename-case]]
+.Names that differ only in letter case
+Occurrences such as `project eagle` for `Project Eagle` are _case variants_.
+They are never renamed silently:
+
+* The dialog lists them with a count per spelling and an unchecked checkbox, _Also rename these case variants_.
+* The preview lists them in their own group, _Case variants (not renamed unless checked)_, where each one can be included or excluded.
+* After the rename, a notification says how many case variants were renamed or left unchanged.
+
+With the checkbox checked, renaming a name to itself normalizes all its spellings.
+
+.Checks in the dialog
+* The new name must not be empty, span lines, contain `..`, `,,` or `::`, start or end with `.`, or be a command such as `!!x` or `ddot.it/…`.
+* If the new name already exists, the dialog warns that the two entities will be merged, and how many triples the existing one has.
+
+The whole rename, across all files, undoes in one step.
+
+*Find Usages* (kbd:[Alt+F7]) uses the same project-wide search and lists case variants in their own group.
 
 image::media/screenshots/rename.png[Renaming an entity]
 

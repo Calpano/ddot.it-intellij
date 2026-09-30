@@ -76,6 +76,14 @@ public final class DdotEmbeds {
             Pattern.compile("^\\[\\s*(?:source\\s*,\\s*)?([A-Za-z][A-Za-z0-9._-]*)\\s*]\\s*$");
     private static final Pattern ADOC_DELIM = Pattern.compile("^([-=.~_*+])\\1{3,}\\s*$");
 
+    /** Extensions of every ddot-hosting file type, lower case. */
+    public static @NotNull Set<String> extensions() {
+        Set<String> all = new java.util.HashSet<>(DDOT_EXT);
+        all.addAll(MD_EXT);
+        all.addAll(ADOC_EXT);
+        return all;
+    }
+
     /** True when {@code extension} is one of the ddot-hosting file types. */
     public static boolean isSupportedExtension(@Nullable String extension) {
         if (extension == null) return false;

@@ -224,6 +224,18 @@ public final class DdotKgraphService implements Disposable {
         return new EntityFacts(groups(out), groups(in), List.copyOf(asRelation));
     }
 
+    /** Number of stated triples that mention {@code entity} as subject, relation or object. */
+    public synchronized int tripleCount(@NotNull String entity) {
+        Kgraph g = entity.isEmpty() ? null : currentGraph();
+        if (g == null) return 0;
+        Set<Kedge> edges = new HashSet<>();
+        edges.addAll(g.pattern(new Kgraph.Pattern(new Kgraph.Constant(entity), new Kgraph.Variable("p"), new Kgraph.Variable("o"))));
+        edges.addAll(g.pattern(new Kgraph.Pattern(new Kgraph.Variable("s"), new Kgraph.Constant(entity), new Kgraph.Variable("o"))));
+        edges.addAll(g.pattern(new Kgraph.Pattern(new Kgraph.Variable("s"), new Kgraph.Variable("p"), new Kgraph.Constant(entity))));
+        edges.removeIf(Kedge::isInferred);
+        return edges.size();
+    }
+
     /**
      * Every place a triple matching the pattern is stated, sorted by file and line. A {@code null} slot is a
      * wildcard, so {@code (foo, rel, null)} finds all {@code foo ..rel.. x} statements.

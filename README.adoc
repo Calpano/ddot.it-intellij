@@ -76,6 +76,7 @@ For the full format spec and the canonical event JSON shape, see the https://ddo
 * `ddot-property` — typed link with metadata
 * `ddot-continue` — continuation predicate
 * `ddot-meta` — metadata pair
+* *Rename* (Shift+F6) — renames an entity across the whole project, in every role, including embedded blocks in Markdown and AsciiDoc; names that differ only in letter case are listed but only renamed when you check them. *Find Usages* (Alt+F7) uses the same search.
 * *Entity popup* — hover a subject, relation or object (or press Ctrl+Q) to see its relations and inverse relations across the whole project; click any item to jump to where that triple is stated.
 * *Tools menu* (Tools → ddot.it):
 * *Format Document* — same as Reformat Code;
