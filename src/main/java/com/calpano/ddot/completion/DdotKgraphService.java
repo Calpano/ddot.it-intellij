@@ -25,7 +25,7 @@ import it.ddot.core.kbase.inmem.Kedge;
 import it.ddot.core.kbase.inmem.Kgraph;
 import it.ddot.core.source.ISnippet;
 import it.ddot.core.source.ISourceLocation;
-import it.ddot.core.io.handler.TripleEvent2Kgraph;
+import it.ddot.core.kbase.io.TripleEvent2Kgraph;
 import it.ddot.core.lint.DdotAnalysis;
 import it.ddot.core.lint.Finding;
 import org.jetbrains.annotations.NotNull;

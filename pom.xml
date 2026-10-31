@@ -153,7 +153,7 @@
         Security pins (2026-10-01, checked against https://osv.dev and the Mend reports in IntelliJ): every version below is the
         newest patch release of the line already in use that fixes the advisories reported for
         the version the build resolved before. Only Jackson 3 databind ships in the plugin zip
-        (ddotit-core uses it); everything else arrives with IntelliJ's test-framework and is
+        (ddotit-kbase uses it); everything else arrives with IntelliJ's test-framework and is
         test scope. When bumping <intellij.testframework.version>, check whether the platform's
         own versions have overtaken these pins and drop the ones that have. As of 2026-10-01 the
         newest platform build, test-framework 262.10968.136 (IntelliJ 2026.2.3), still brings the
@@ -170,7 +170,7 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Jackson 3, SHIPPED (bundled by ddotit-core). 3.1.4 → 3.2.3: GHSA-cxp5-3px4-pw24,
+            <!-- Jackson 3, SHIPPED (bundled by ddotit-kbase). 3.1.4 → 3.2.3: GHSA-cxp5-3px4-pw24,
                  GHSA-wv8q-qhhj-9h54, GHSA-q4xh-88c3-wmh7, GHSA-gx83-3vf8-gh7j, GHSA-wjgm-6hv5-3cvf,
                  GHSA-5gvw-p9qm-jgwh, GHSA-vvgp-rfg2-7rr6.
                  CAUTION: the zip bundles only jackson-databind, which at runtime meets the IDE's own
@@ -337,9 +337,19 @@
         <dependency>
             <groupId>it.ddot</groupId>
             <artifactId>ddotit-core</artifactId>
-            <!-- Keep in lockstep with ../ddot.it-java-core's <version>. It publishes to no
-                 repository, so this resolves from a local `mvn install` there — a stale pin
-                 silently resolves an older cached jar from ~/.m2 instead of failing. -->
+            <!-- A release, published to GitHub Packages (maven.pkg.github.com/calpano/ddot.it-java-core). -->
+            <version>0.3.0</version>
+        </dependency>
+        <!--
+            The knowledge model (Kgraph, Kedge, TripleEvent2Kgraph), split out of ddotit-core in 0.3.0;
+            DdotKgraphService builds its graph with it. It brings graphinout's base-api, foundation-*,
+            Jackson 3 and slf4j, which ddotit-core 0.2.x used to bring.
+        -->
+        <dependency>
+            <groupId>it.ddot</groupId>
+            <artifactId>ddotit-kbase</artifactId>
+            <!-- Keep in lockstep with ../ddot.it-java-kbase's <version>. It publishes to no repository
+                 yet, so this resolves from a local `mvn install` there. -->
             <version>0.3.0-SNAPSHOT</version>
         </dependency>
 
