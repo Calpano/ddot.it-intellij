@@ -193,6 +193,21 @@ The tooltip links to the other statements; kbd:[Alt+Enter] offers to go to them.
 Every warning in this chapter, and the linter's pitfalls (lines that look like triples but are not, such as `S ... O`), comes from the ddot.it core library, not from the plugin.
 `ddot lint <dir>` prints the same warnings for the same lines, so a CI build can check what the editor shows.
 
+[[replaced-names]]
+=== Replaced names
+
+A statement `aaa ..is replaced by.. bbb`, or `bbb ..replaces.. aaa`, tells an editor to use `bbb` instead of `aaa`.
+The ddot.it vocabulary does this for the N3-style shortcut: `a ..is replaced by.. has type`.
+
+.What the plugin does
+* Every use of a replaced name gets a yellow warning, for example _'a' is replaced by 'has type'_, with a link to where the replacement is stated.
+* kbd:[Alt+Enter] offers _Replace 'a' with 'has type'_ for this occurrence, and _Replace all 'a' in this file with 'has type'_.
+* Chains are followed: if `a` is replaced by `b` and `b` by `c`, the replacement offered is `c`.
+* Statements that declare names -- `is replaced by`, `replaces`, `is alias of`, `has alias`, `same as` -- are never marked.
+
+`is replaced by` does not make two names one thing; that is what `is alias of` does.
+So the vocabulary also declares `a ..is alias of.. has type`, and `Ann ..a.. Person` makes Ann a `Person` for the other checks, such as cardinality, even before you replace `a`.
+
 [[completion]]
 === Smart completion
 

@@ -27,6 +27,8 @@ import it.ddot.core.lint.Severity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -62,7 +64,7 @@ public final class DdotFindingsAnnotator implements Annotator {
             if (hostRange == null) continue;
             TextRange range = doc instanceof DocumentWindow w ? injected(w, hostRange) : hostRange;
             if (range == null) continue;
-            annotate(project, service, f, hostDoc.getText(hostRange), range, holder);
+            annotate(project, service, f, hostDoc.getText(hostRange), hostRange, range, holder);
         }
     }
 
@@ -96,7 +98,7 @@ public final class DdotFindingsAnnotator implements Annotator {
     }
 
     private static void annotate(Project project, DdotKgraphService service, Finding f, String flagged,
-                                 TextRange range, AnnotationHolder holder) {
+                                 TextRange hostRange, TextRange range, AnnotationHolder holder) {
         List<Location> related = f.related().stream().filter(l -> !l.equals(f.location())).toList();
         String phrase = relatedPhrase(f.ruleId());
         StringBuilder plain = new StringBuilder(f.message());
@@ -125,6 +127,16 @@ public final class DdotFindingsAnnotator implements Annotator {
             Map<String, Location> spellings = analysis == null ? null
                     : analysis.caseVariantGroups().get(flagged.toLowerCase(Locale.ROOT));
             if (spellings != null) for (String spelling : spellings.keySet()) builder = builder.withFix(new UnifySpelling(spelling));
+        } else if (DdotAnalysis.REPLACED_NAME.equals(f.ruleId())) {
+            DdotAnalysis analysis = service.analysis();
+            List<String> by = analysis == null ? null : analysis.replacements().get(flagged);
+            if (by != null) {
+                for (String b : by) builder = builder.withFix(new ReplaceName(flagged, b, hostRange));
+                if (by.size() == 1) builder = builder.withFix(new ReplaceName(flagged, by.getFirst(), null));
+            }
+            for (Location loc : related) {
+                builder = builder.withFix(new GoToStatement(loc, DdotGoto.label(project, loc), goToFamily(f.ruleId())));
+            }
         } else {
             for (Location loc : related) {
                 builder = builder.withFix(new GoToStatement(loc, DdotGoto.label(project, loc), goToFamily(f.ruleId())));
@@ -139,6 +151,7 @@ public final class DdotFindingsAnnotator implements Annotator {
             case DdotAnalysis.CARDINALITY, DdotAnalysis.CARDINALITY_VALUE -> "cardinality stated at";
             case DdotAnalysis.CASE_VARIANT -> "other spelling at";
             case DdotAnalysis.RELATION_ON_BOTH_SIDES -> "also placed at";
+            case DdotAnalysis.REPLACED_NAME -> "replacement stated at";
             default -> "see";
         };
     }
@@ -147,6 +160,7 @@ public final class DdotFindingsAnnotator implements Annotator {
         return switch (ruleId) {
             case DdotAnalysis.CARDINALITY, DdotAnalysis.CARDINALITY_VALUE -> "Go to cardinality statement";
             case DdotAnalysis.RELATION_ON_BOTH_SIDES -> "Go to the other statement placing the relation";
+            case DdotAnalysis.REPLACED_NAME -> "Go to the replacement statement";
             default -> "Go to related statement";
         };
     }
@@ -182,6 +196,65 @@ public final class DdotFindingsAnnotator implements Annotator {
         @Override
         public boolean startInWriteAction() {
             return false;
+        }
+    }
+
+    /**
+     * Alt+Enter on a replaced name: substitute its replacement, as the vocabulary asks an editor to
+     * ({@code aaa ..is replaced by.. bbb}). With a host range, this occurrence; without, every occurrence the
+     * analysis marks in the host file -- so the statements declaring the replacement stay as they are.
+     */
+    private record ReplaceName(String name, String by, @Nullable TextRange hostRange) implements IntentionAction {
+        @Override
+        public @NotNull String getText() {
+            return hostRange != null ? "Replace '" + name + "' with '" + by + "'"
+                                     : "Replace all '" + name + "' in this file with '" + by + "'";
+        }
+
+        @Override
+        public @NotNull String getFamilyName() {
+            return "Replace a replaced name";
+        }
+
+        @Override
+        public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
+            return true;
+        }
+
+        @Override
+        public void invoke(@NotNull Project project, Editor editor, PsiFile file) {
+            PsiFile host = InjectedLanguageManager.getInstance(project).getTopLevelFile(file);
+            VirtualFile vf = host == null ? null : host.getVirtualFile();
+            Document doc = host == null ? null : PsiDocumentManager.getInstance(project).getDocument(host);
+            if (vf == null || doc == null) return;
+            List<TextRange> ranges = new ArrayList<>();
+            if (hostRange != null) {
+                ranges.add(hostRange);
+            } else {
+                for (Finding f : DdotKgraphService.getInstance(project).findings(vf.getUrl(), vf.getExtension(), doc.getText())) {
+                    if (!DdotAnalysis.REPLACED_NAME.equals(f.ruleId())) continue;
+                    TextRange r = DdotFindingsAnnotator.hostRange(doc, f);
+                    if (r != null) ranges.add(r);
+                }
+            }
+            ranges.sort(Comparator.comparingInt(TextRange::getStartOffset).reversed());
+            for (TextRange r : ranges) {
+                if (r.getEndOffset() <= doc.getTextLength() && doc.getText(r).equals(name)) {
+                    doc.replaceString(r.getStartOffset(), r.getEndOffset(), by);
+                }
+            }
+            PsiDocumentManager.getInstance(project).commitDocument(doc);
+        }
+
+        @Override
+        public @NotNull IntentionPreviewInfo generatePreview(@NotNull Project project, @NotNull Editor editor,
+                                                             @NotNull PsiFile file) {
+            return IntentionPreviewInfo.EMPTY;
+        }
+
+        @Override
+        public boolean startInWriteAction() {
+            return true;
         }
     }
 
