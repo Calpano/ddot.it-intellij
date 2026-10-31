@@ -148,16 +148,104 @@
         pins jackson-annotations to 2.20 (foundation-jvm) while jackson-databind floats
         to 2.21.2; databind 2.21 references com.fasterxml.jackson.annotation.JsonSerializeAs
         which only exists in annotations 2.21, so the mismatch crashes ObjectMapper init
-        with ClassNotFoundException. The BOM aligns annotations/core/databind to 2.21.2.
+        with ClassNotFoundException. The BOM aligns annotations/core/databind to one 2.21.x.
+
+        Security pins (2026-10-01, checked against https://osv.dev and the Mend reports in IntelliJ): every version below is the
+        newest patch release of the line already in use that fixes the advisories reported for
+        the version the build resolved before. Only Jackson 3 databind ships in the plugin zip
+        (ddotit-core uses it); everything else arrives with IntelliJ's test-framework and is
+        test scope. When bumping <intellij.testframework.version>, check whether the platform's
+        own versions have overtaken these pins and drop the ones that have. As of 2026-10-01 the
+        newest platform build, test-framework 262.10968.136 (IntelliJ 2026.2.3), still brings the
+        same vulnerable versions, so bumping the platform is no alternative to these pins.
     -->
     <dependencyManagement>
         <dependencies>
+            <!-- 2.21.2 → 2.21.7: GHSA-cxp5-3px4-pw24, GHSA-wv8q-qhhj-9h54, GHSA-q4xh-88c3-wmh7,
+                 GHSA-r7wm-3cxj-wff9 (jackson-core) and 13 more databind advisories. -->
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
-                <version>2.21.2</version>
+                <version>2.21.7</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <!-- Jackson 3, SHIPPED (bundled by ddotit-core). 3.1.4 → 3.2.3: GHSA-cxp5-3px4-pw24,
+                 GHSA-wv8q-qhhj-9h54, GHSA-q4xh-88c3-wmh7, GHSA-gx83-3vf8-gh7j, GHSA-wjgm-6hv5-3cvf,
+                 GHSA-5gvw-p9qm-jgwh, GHSA-vvgp-rfg2-7rr6.
+                 CAUTION: the zip bundles only jackson-databind, which at runtime meets the IDE's own
+                 jackson-core 3.1.4 (lib/intellij.libraries.jackson3.jar, IntelliJ 2026.2). Tests do
+                 not cover that pairing, since here the BOM lifts jackson-core to 3.2.3 as well.
+                 3.1.7 fixes the same advisories within the IDE's minor version. -->
+            <dependency>
+                <groupId>tools.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>3.2.3</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Test only. 4.2.15 → 4.2.18: GHSA-c4c3-7fpv-j4q5 (critical), GHSA-fccg-mwvh-qqg4
+                 (netty-handler); GHSA-6jqx-86gh-f27w, GHSA-jppx-w49h-x2qq, GHSA-mvh2-crg5-v77c and
+                 5 more (netty-codec-http); GHSA-93wv-jw9v-4972, GHSA-c69g-56f8-xwqj (codec-http2). -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>4.2.18.Final</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Test only. 1.48.0 → 1.66.0: GHSA-rcgg-9c38-7xpx (fixed in 1.62.0). -->
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>1.66.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Test only. 1.84 → 1.86: GHSA-9pwp-9qqc-pr26 (critical), GHSA-qp49-qgx5-5m26. -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>1.86</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcutil-jdk18on</artifactId>
+                <version>1.86</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>1.86</version>
+            </dependency>
+            <!-- Test only. 1.22.1 → 1.23.2: GHSA-pmhh-3w7g-xqp8. -->
+            <dependency>
+                <groupId>org.jsoup</groupId>
+                <artifactId>jsoup</artifactId>
+                <version>1.23.2</version>
+            </dependency>
+            <!-- Test only (via ide-util-netty). 1.5.7-7 → 1.5.7-20: CVE-2026-87795, CVE-2026-87823,
+                 CVE-2026-89046, CVE-2026-90560, CVE-2026-87825, CVE-2026-87877, CVE-2026-87824,
+                 CVE-2026-90852, CVE-2026-89045, all fixed in 1.5.7-14. Not in osv.dev at the time;
+                 reported by Mend: https://www.mend.io/vulnerability-database/CVE-2026-87795 -->
+            <dependency>
+                <groupId>com.github.luben</groupId>
+                <artifactId>zstd-jni</artifactId>
+                <version>1.5.7-20</version>
+            </dependency>
+            <!-- Test only (via object-serializer). 1.11.11 → 1.12.1: CVE-2026-75935, CVE-2026-75936
+                 (fixed in 1.12.0), CVE-2026-85786 (fixed in 1.12.1). Reported by Mend:
+                 https://www.mend.io/vulnerability-database/CVE-2026-85786 -->
+            <dependency>
+                <groupId>com.amazon.ion</groupId>
+                <artifactId>ion-java</artifactId>
+                <version>1.12.1</version>
+            </dependency>
+            <!-- Test only. 1.11.0 → 1.12.0: GHSA-xx22-p4ch-683r. -->
+            <dependency>
+                <groupId>at.yawk.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>1.12.0</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -252,7 +340,7 @@
             <!-- Keep in lockstep with ../ddot.it-java-core's <version>. It publishes to no
                  repository, so this resolves from a local `mvn install` there — a stale pin
                  silently resolves an older cached jar from ~/.m2 instead of failing. -->
-            <version>0.2.2-SNAPSHOT</version>
+            <version>0.3.0-SNAPSHOT</version>
         </dependency>
 
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>annotations</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/annotations.jar</systemPath></dependency>

@@ -1,0 +1,10 @@
+= Adir Project File
+This file defines meta-data on the adir project in a machine-readable way.
+
+ddot.it-intellij ..has type.. Adir Project
+..goal.. Project-wide IDE support for editing ddot.it files
+..uses..com.graphinoutit:reader-ddot
+..uses..it.ddot:ddotit-core
+..visibility.. public
+..live at..https://plugins.jetbrains.com/plugin/31651-ddot-it
+
