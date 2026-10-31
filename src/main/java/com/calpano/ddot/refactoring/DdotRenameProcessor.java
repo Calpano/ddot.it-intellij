@@ -1,6 +1,7 @@
 package com.calpano.ddot.refactoring;
 
 import com.intellij.notification.Notification;
+import it.ddot.core.embed.DdotOccurrences;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
 import com.intellij.openapi.editor.Document;
@@ -88,7 +89,7 @@ public final class DdotRenameProcessor extends BaseRefactoringProcessor {
         variantsFound.clear();
         PsiManager psiManager = PsiManager.getInstance(myProject);
         List<UsageInfo> usages = new ArrayList<>();
-        for (DdotOccurrences.FileOccurrence fo : DdotOccurrences.inProject(myProject, oldName)) {
+        for (DdotProjectOccurrences.FileOccurrence fo : DdotProjectOccurrences.inProject(myProject, oldName)) {
             PsiFile file = psiManager.findFile(fo.file());
             if (file == null) continue;
             DdotOccurrences.Occurrence o = fo.occurrence();

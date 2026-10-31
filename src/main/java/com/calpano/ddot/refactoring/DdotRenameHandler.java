@@ -1,6 +1,7 @@
 package com.calpano.ddot.refactoring;
 
 import com.calpano.ddot.psi.DdotEntity;
+import it.ddot.core.embed.DdotOccurrences;
 import com.intellij.injected.editor.EditorWindow;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
@@ -50,12 +51,12 @@ public final class DdotRenameHandler implements RenameHandler {
 
     /** Open the rename dialog for {@code name}, after looking up its case variants. */
     public static void start(@NotNull Project project, @NotNull String name, @Nullable PsiElement origin) {
-        List<DdotOccurrences.FileOccurrence> found = ProgressManager.getInstance().runProcessWithProgressSynchronously(
-                () -> ReadAction.compute(() -> DdotOccurrences.inProject(project, name)),
+        List<DdotProjectOccurrences.FileOccurrence> found = ProgressManager.getInstance().runProcessWithProgressSynchronously(
+                () -> ReadAction.compute(() -> DdotProjectOccurrences.inProject(project, name)),
                 "Searching for '" + name + "'", true, project);
         if (found == null) return; // cancelled
         Map<String, Integer> variants = new TreeMap<>();
-        for (DdotOccurrences.FileOccurrence fo : found) {
+        for (DdotProjectOccurrences.FileOccurrence fo : found) {
             String spelling = fo.occurrence().name();
             if (!spelling.equals(name)) variants.merge(spelling, 1, Integer::sum);
         }

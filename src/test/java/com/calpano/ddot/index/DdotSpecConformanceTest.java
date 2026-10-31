@@ -1,5 +1,7 @@
 package com.calpano.ddot.index;
 
+import it.ddot.core.embed.DdotEmbeds;
+import it.ddot.core.embed.LocatedTriple;
 import it.ddot.core.event.DdotTriple;
 import it.ddot.core.token.DdotTokenizer;
 import org.junit.Test;
@@ -125,7 +127,7 @@ public final class DdotSpecConformanceTest {
         assertNull(DdotEntityIndex.commandNameOf("!!"));
     }
 
-    private static List<DdotTriple> triples(List<DdotTripleIndex.Located> located) {
-        return located.stream().map(DdotTripleIndex.Located::triple).toList();
+    private static List<DdotTriple> triples(List<LocatedTriple> located) {
+        return located.stream().map(LocatedTriple::triple).toList();
     }
 }

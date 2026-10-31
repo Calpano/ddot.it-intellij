@@ -1,6 +1,7 @@
 package com.calpano.ddot.completion;
 
-import com.calpano.ddot.index.DdotEmbeds;
+import it.ddot.core.embed.DdotEmbeds;
+import it.ddot.core.embed.LocatedTriple;
 import it.ddot.core.event.DdotEvent;
 import it.ddot.core.event.DdotTriple;
 import com.calpano.ddot.index.DdotTripleIndex;
@@ -25,11 +26,14 @@ import it.ddot.core.kbase.inmem.Kgraph;
 import it.ddot.core.source.ISnippet;
 import it.ddot.core.source.ISourceLocation;
 import it.ddot.core.io.handler.TripleEvent2Kgraph;
+import it.ddot.core.lint.DdotAnalysis;
+import it.ddot.core.lint.Finding;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +68,15 @@ public final class DdotKgraphService implements Disposable {
     /** URLs of ddot-hosting files changed since the last query; applied as deltas. */
     private final Set<String> dirty = ConcurrentHashMap.newKeySet();
     private @Nullable Kgraph graph;
+    /** Each file's stated triples, as last ingested — what the project-wide checks read. */
+    private final Map<String, List<LocatedTriple>> statedByUrl = new HashMap<>();
+    /** Bumped on every change to the graph; keys the cached analysis. */
+    private long version;
+    private long analysedVersion = -1;
+    private @Nullable DdotAnalysis analysis;
+    /** One file's findings, for the analysis and text they were computed from: injected blocks share them. */
+    private record FileFindings(DdotAnalysis analysis, String text, List<Finding> findings) {}
+    private final Map<String, FileFindings> findingsByUrl = new HashMap<>();
 
     public DdotKgraphService(@NotNull Project project) {
         this.project = project;
@@ -224,6 +237,36 @@ public final class DdotKgraphService implements Disposable {
         return new EntityFacts(groups(out), groups(in), List.copyOf(asRelation));
     }
 
+    /**
+     * The project's ddot.it warnings ({@link DdotAnalysis}), recomputed only after the graph changed.
+     * {@code null} when indexes aren't ready.
+     */
+    public synchronized @Nullable DdotAnalysis analysis() {
+        if (currentGraph() == null) return null;
+        if (analysis == null || analysedVersion != version) {
+            analysis = DdotAnalysis.of(statedByUrl);
+            analysedVersion = version;
+            findingsByUrl.clear();
+        }
+        return analysis;
+    }
+
+    /**
+     * Every warning for one host file, as {@link DdotAnalysis#findings} gives them, cached for the text
+     * they were computed from: each ddot block of a Markdown file asks for its host's findings.
+     * Without indexes, only the per-file checks.
+     */
+    public synchronized @NotNull List<Finding> findings(@NotNull String url, @Nullable String extension,
+                                                         @NotNull String text) {
+        DdotAnalysis current = analysis();
+        if (current == null) return DdotAnalysis.fileFindings(url, extension, text);
+        FileFindings cached = findingsByUrl.get(url);
+        if (cached != null && cached.analysis() == current && cached.text().equals(text)) return cached.findings();
+        List<Finding> found = current.findings(url, extension, text);
+        findingsByUrl.put(url, new FileFindings(current, text, found));
+        return found;
+    }
+
     /** Number of stated triples that mention {@code entity} as subject, relation or object. */
     public synchronized int tripleCount(@NotNull String entity) {
         Kgraph g = entity.isEmpty() ? null : currentGraph();
@@ -313,6 +356,8 @@ public final class DdotKgraphService implements Disposable {
 
     private @NotNull Kgraph build() {
         Kgraph g = new Kgraph("project");
+        statedByUrl.clear();
+        version++;
         DdotTripleIndex.forEachFile(project, (file, triples) -> ingest(g, file.getUrl(), triples));
         g.inference();
         dirty.clear(); // the full build already covers every saved file …
@@ -326,8 +371,10 @@ public final class DdotKgraphService implements Disposable {
         if (dirty.isEmpty()) return;
         Set<String> batch = new HashSet<>(dirty);
         dirty.removeAll(batch);
+        version++;
         for (String url : batch) {
             g.removeBySource(url); // drop this file's old contribution (inferred edges too)
+            statedByUrl.remove(url);
             VirtualFile file = VirtualFileManager.getInstance().findFileByUrl(url);
             if (file != null && file.isValid() && ProjectFileIndex.getInstance(project).isInContent(file)) {
                 ingest(g, url, currentTriples(file));
@@ -337,7 +384,7 @@ public final class DdotKgraphService implements Disposable {
     }
 
     /** A file's triples as currently edited: from its unsaved document if there is one, else from the index. */
-    private @NotNull List<DdotTripleIndex.Located> currentTriples(@NotNull VirtualFile file) {
+    private @NotNull List<LocatedTriple> currentTriples(@NotNull VirtualFile file) {
         FileDocumentManager fdm = FileDocumentManager.getInstance();
         Document doc = fdm.getCachedDocument(file);
         if (doc != null && fdm.isDocumentUnsaved(doc)) {
@@ -350,13 +397,16 @@ public final class DdotKgraphService implements Disposable {
      * Add one file's triples to {@code g} with provenance keyed by its URL (what removeBySource targets) and the
      * line each triple stands on (what {@link #locations} navigates to).
      */
-    private static void ingest(@NotNull Kgraph g, @NotNull String url, @NotNull List<DdotTripleIndex.Located> triples) {
+    private void ingest(@NotNull Kgraph g, @NotNull String url, @NotNull List<LocatedTriple> triples) {
         ISnippet snippet = ISnippet.of(url);
         if (triples.isEmpty()) return;
+        statedByUrl.put(url, triples);
         TripleEvent2Kgraph sink = new TripleEvent2Kgraph(g);
-        for (DdotTripleIndex.Located l : triples) {
+        for (LocatedTriple l : triples) {
             DdotTriple t = l.triple();
-            sink.accept(new DdotEvent(snippet, t.from(), t.type(), t.to(), l.line()));
+            DdotEvent event = new DdotEvent(snippet, t.from(), t.type(), t.to(), l.line());
+            for (LocatedTriple.Meta m : l.meta()) event.addMeta(m.relation(), m.value());
+            sink.accept(event);
         }
     }
 }

@@ -24,6 +24,8 @@ import java.util.List;
  * <p>The lexer-level {@link DdotSyntaxHighlighter} sets a base color on every
  * token; annotations layer role-specific attributes on top. Lines that fail the gate (prose, titles) produce no tokens
  * and keep the base color.
+ * <p>Coloring only: warnings, such as an incomplete triple, come from the core library's analysis
+ * ({@link com.calpano.ddot.lint.DdotFindingsAnnotator}).
  */
 public final class DdotHighlightAnnotator implements Annotator {
 
@@ -66,45 +68,6 @@ public final class DdotHighlightAnnotator implements Annotator {
         return starts;
     }
 
-    /**
-     * Flag triple lines whose object slot is empty — e.g. {@code s ..p..} or {@code ..p..} alone on a line. These parse
-     * to nothing in the event stream (the exporter silently drops them), which is a footgun.
-     * <p>A line is incomplete when it carries a main-part {@code doubledot}
-     * operator but nothing fills the slot after the last one: no {@code object} and no command-shaped field (a
-     * {@code !!block} opener is a filled object). Meta-only continuations, verbatim bodies and excluded lines never
-     * carry a main {@code doubledot} token, so they are naturally exempt.
-     */
-    private static void warnIncompleteTriples(List<Token> tokens, int[] lineStarts, AnnotationHolder holder) {
-        int i = 0;
-        int n = tokens.size();
-        while (i < n) {
-            int line = tokens.get(i).line();
-            int j = i;
-            Token lastDoubleDot = null;
-            boolean filledAfter = false;
-            while (j < n && tokens.get(j).line() == line) {
-                Token t = tokens.get(j);
-                switch (t.tokenName()) {
-                    case TokenName.DOUBLEDOT -> {
-                        lastDoubleDot = t;
-                        filledAfter = false;
-                    }
-                    case TokenName.OBJECT, TokenName.COMMAND, TokenName.COMMAND_PARAM, TokenName.BLOCK_END ->
-                            filledAfter = true;
-                    default -> {
-                    }
-                }
-                j++;
-            }
-            if (lastDoubleDot != null && !filledAfter) {
-                int start = lineStarts[line] + lastDoubleDot.start();
-                int end = lineStarts[line] + lastDoubleDot.end();
-                holder.newAnnotation(HighlightSeverity.WARNING, "Incomplete ddot.it triple: object is missing").range(new TextRange(start, end)).create();
-            }
-            i = j;
-        }
-    }
-
     @Override
     public void annotate(@NotNull PsiElement element, @NotNull AnnotationHolder holder) {
         if (!(element instanceof DdotFile file)) return;
@@ -122,7 +85,6 @@ public final class DdotHighlightAnnotator implements Annotator {
             holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(new TextRange(start, end)).textAttributes(key).create();
         }
 
-        warnIncompleteTriples(tokens, lineStarts, holder);
     }
 
 }

@@ -1,6 +1,7 @@
 package com.calpano.ddot.index;
 
 import com.calpano.ddot.completion.DdotRecentRelations;
+import it.ddot.core.embed.DdotEmbeds;
 import it.ddot.core.token.DdotTokenizer;
 import it.ddot.core.token.Token;
 import com.calpano.ddot.psi.DdotFile;

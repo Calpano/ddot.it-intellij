@@ -1,6 +1,7 @@
 package com.calpano.ddot.refactoring;
 
 import com.calpano.ddot.psi.DdotEntity;
+import it.ddot.core.embed.DdotOccurrences;
 import com.intellij.find.findUsages.FindUsagesHandler;
 import com.intellij.find.findUsages.FindUsagesHandlerFactory;
 import com.intellij.find.findUsages.FindUsagesOptions;
@@ -35,7 +36,7 @@ public final class DdotFindUsagesHandlerFactory extends FindUsagesHandlerFactory
                     String name = element instanceof DdotEntity e ? e.getName() : null;
                     if (name == null || name.isEmpty()) return true;
                     PsiManager psiManager = PsiManager.getInstance(element.getProject());
-                    for (DdotOccurrences.FileOccurrence fo : DdotOccurrences.inProject(element.getProject(), name)) {
+                    for (DdotProjectOccurrences.FileOccurrence fo : DdotProjectOccurrences.inProject(element.getProject(), name)) {
                         PsiFile file = psiManager.findFile(fo.file());
                         if (file == null) continue;
                         DdotOccurrences.Occurrence o = fo.occurrence();

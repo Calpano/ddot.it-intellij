@@ -41,6 +41,11 @@
                 in every role and in embedded blocks; case variants are offered, never
                 renamed silently.</li>
             <li>Find Usages (Alt+F7) on any entity, project-wide.</li>
+            <li>Letter-case check: names that differ only in capitalisation get a yellow
+                warning; Alt+Enter unifies the spelling project-wide.</li>
+            <li>Cardinality checking: violations of relation bounds (via
+                <code>domain</code>/<code>range</code> or the vocabulary's cardinality
+                relations) get a yellow warning that links to where the bound is stated.</li>
             <li>Entity popup: hover a subject, relation or object to see its relations and
                 inverse relations across the project; click an item to jump to where the
                 triple is stated.</li>
@@ -97,6 +102,45 @@
                 name warns about the merge. Invalid names are refused. One undo
                 reverts every file. Find Usages (Alt+F7) uses the same search.
                 Specified in <code>feature-rename.adoc</code>.</li>
+            <li><b>Cardinality checking.</b> Bounds on a relation —
+                <code>rel ..range.. T ,, ..cardinality.. 1</code> (also
+                <code>doc:range</code>, <code>min cardinality</code>, <code>max
+                cardinality</code>), <code>rel ..min cardinality.. n</code>,
+                <code>rel ..max cardinality.. n</code>, <code>..has type.. required</code>,
+                <code>..has type.. single valued</code> — are checked across the project.
+                They apply to every instance of the relation's domain
+                (<code>rel ..domain.. T</code>, also <code>doc:domain</code>, subtypes
+                included) and to every subject using the relation; an instance without
+                any value violates a minimum. Violating lines get a yellow warning, also
+                in embedded blocks; the tooltip links to where the bound is stated, and
+                Alt+Enter offers <i>Go to cardinality statement</i>. Non-numeric bounds
+                are flagged too. What counts is what the project entails under CDS:
+                values stated through an alias, a sub-relation or an inverse
+                (<code>tail ..is part of.. rex</code>), instances of a subtype of the
+                domain; two names of one thing (<code>same as</code>) count once, chains
+                are not followed. Alternative names (<code>lowerBound</code>,
+                <code>hasType</code>, …) count only where a file declares them with
+                <code>has alias</code> or <code>is alias of</code>. The triple index now
+                also stores metadata pairs (index version 6).</li>
+            <li><b>Relations without a direction.</b> A relation that ends up under both
+                <code>links to</code> and <code>is linked from</code> — for example
+                through an explicit inverse that contradicts its side — gets a yellow
+                warning on every statement that places it.</li>
+            <li><b>One source of warnings.</b> Every warning now comes from the core
+                library's analysis, which <code>ddot lint</code> also prints, so the
+                editor and the command line agree. This also shows the linter's
+                report-only pitfalls (DL010–DL012: dot runs and separators that make a
+                line silently not a triple), which the editor did not show before.</li>
+            <li><b>Letter-case check.</b> A subject, relation, object or metadata name
+                that also occurs in the project in different letter case
+                (<code>Project Eagle</code> / <code>project eagle</code>) gets a yellow
+                warning on every spelling; the tooltip links to where the other spellings
+                are used, and Alt+Enter offers <i>Use '…' everywhere</i>, a project-wide
+                rename of all case variants. Alias statements (<code>Foo ..has alias..
+                foo</code>, <code>..is alias of..</code>) are exempt.</li>
+            <li>Security: the bundled <code>jackson-databind</code> 3.x is updated from
+                3.1.4 to 3.2.3, fixing seven advisories (among them GHSA-cxp5-3px4-pw24
+                and GHSA-wv8q-qhhj-9h54).</li>
             <li>The triple index now records the line each triple is stated on
                 (index version 5, rebuilt automatically).</li>
         </ul>
@@ -326,6 +370,13 @@
         <findUsagesHandlerFactory implementation="com.calpano.ddot.refactoring.DdotFindUsagesHandlerFactory"/>
 
         <notificationGroup id="ddot.it" displayType="BALLOON"/>
+
+        <!-- Warnings, as the core library's DdotAnalysis finds them (ddot lint prints the same):
+             linter pitfalls, incomplete triples, cardinality (ddot-it-vocabulary.adoc §Cardinality),
+             letter-case variants, relations under both `links to` and `is linked from`. Tooltips link
+             to the places a warning names. -->
+        <annotator language="ddot.it" implementationClass="com.calpano.ddot.lint.DdotFindingsAnnotator"/>
+        <codeInsight.linkHandler prefix="#ddot-goto/" handlerClass="com.calpano.ddot.lint.DdotGotoLinkHandler"/>
 
         <lang.findUsagesProvider
                 language="ddot.it"

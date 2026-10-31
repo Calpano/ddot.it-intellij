@@ -86,6 +86,113 @@ The JSON export would otherwise drop such a line silently.
 
 image::media/screenshots/syntax-highlite.png[Syntax highlighting of a ddot.it file]
 
+[[cardinality]]
+=== Cardinality checking
+
+The plugin checks cardinality bounds of relations across the whole project and marks every line that violates one with a yellow warning.
+
+A bound is always stated on the relation, never on a type: `Person ..has address.. Address ,, ..max cardinality.. 1` would state that `Person` has the address `Address`, so it is data, not a bound.
+
+.Where a bound is stated
+As metadata of the relation's range:: `has Maven group ..range.. Maven group ,, ..cardinality.. 1`, also with `doc:range`.
+As a property of the relation:: `rel ..cardinality.. n`, `rel ..min cardinality.. n`, `rel ..max cardinality.. n`.
+As a type of the relation:: `rel ..has type.. required` (at least 1) and `rel ..has type.. single valued` (at most 1).
+
+`cardinality` sets both bounds, `min cardinality` the lower and `max cardinality` the upper one.
+
+.Who a bound applies to
+* Every instance of the relation's domain, stated as `has Maven group ..domain.. Maven module`, also with `doc:domain`.
+  Instances are entities with `..has type.. Maven module`, including instances of subtypes declared with `has supertype` or `has subtype`.
+* Every subject that uses the relation, with or without a domain.
+
+.Example
+[source,ddot]
+----
+has Maven group ..domain.. Maven module
+has Maven group ..range.. Maven group ,, ..cardinality.. 1
+
+core ..has type.. Maven module
+core ..has Maven group.. it.ddot
+..has Maven group.. com.calpano
+web ..has type.. Maven module
+----
+
+Here `core` has two groups, one too many, and `web` has none, one too few.
+
+.What is marked
+* *Too many or too few values:* every line that states one of the subject's values for that relation.
+* *No value at all:* the line that makes the entity an instance of the domain, such as `web ..has type.. Maven module`.
+  This needs a domain; without one, a minimum can only catch too few values, never a missing one.
+* *A bound that is not a whole number,* such as `..max cardinality.. many`: the line that states it.
+
+.Getting to the statement
+* The warning's tooltip says where the bound is stated, for example _Cardinality stated at schema/maven.ddot:2_, as a link that opens that line.
+* kbd:[Alt+Enter] on the warning offers _Go to cardinality statement (schema/maven.ddot:2)_.
+
+Warnings appear in `.ddot` files and in ddot blocks inside Markdown and AsciiDoc files, and they follow edits, including unsaved ones.
+
+Values are counted as distinct objects; the same triple stated twice counts once.
+
+.What counts
+The check counts what the project entails under CDS (https://ddot.it/spec/ddot-it-cds.html[CDS & Standards Alignment]), not only what it spells out:
+
+* A value stated through an alias, a sub-relation or an inverse counts: with `email ..has alias.. mail`, `John ..mail.. x` counts toward `email`; with `has part ..max cardinality.. 1`, so does `tail ..is part of.. rex` for `rex`.
+* Two names of one thing count once: with `a@x ..same as.. ann@x`, `Ann ..email.. a@x` and `Ann ..email.. ann@x` are one value.
+* Chains are not followed: `has part` counts the direct parts, not the parts of parts.
+
+.Alternative names
+Alternative names are read from the project's own files, never built in.
+A name counts as another one only where a file says so, with `has alias` or `is alias of`:
+
+* `min cardinality ..has alias.. lowerBound` or `lowerBound ..is alias of.. min cardinality`
+* `a ..is alias of.. has type`
+
+`is replaced by` and `replaces` do not make a second name: in CDS they are a kind of `has similar`, and only `is alias of` and `same as` hand on what is said about a name.
+This applies to every name the check reads: the cardinality relations, `has type`, `has supertype`, `has subtype`, and your own relations and entities.
+If the ddot.it vocabulary is part of the project, its declared aliases, such as `lowerBound`, `upperBound` and `hasType`, work automatically.
+A relation-level bound only applies to subjects that use the relation at least once, so `required` on a relation only has an effect in its type-level form.
+
+[[case-variants]]
+=== Names that differ only in letter case
+
+To ddot.it, `Project Eagle` and `project eagle` are two different entities.
+That is rarely intended, so every name that also occurs elsewhere in the project in different letter case gets a yellow warning, on every spelling.
+
+.What is checked
+* Subjects, relations, objects, metadata keys and metadata values.
+* Across all `.ddot` files and ddot blocks in Markdown and AsciiDoc files of the project.
+* Not alias statements: `Foo ..has alias.. foo` and `foo ..is alias of.. Foo` name a case variant on purpose, so they are never marked, and a spelling that only occurs in them does not count.
+  Using `foo` anywhere else is still marked.
+
+.Fixing it
+* The tooltip lists each other spelling with a link to where it is used.
+* kbd:[Alt+Enter] offers _Use '…' everywhere (rename all case variants)_, once per spelling.
+  It renames every case variant in the project to the chosen spelling, as a project-wide rename with case variants included (see <<rename-case>>), and undoes in one step.
+
+[[relation-sides]]
+=== Relations without a direction
+
+Every relation below `has similar` lies on one side of the hierarchy: under `links to`, or under `is linked from`, where its inverse is.
+That side is its direction.
+A relation that ends up on both sides has none, for example:
+
+[source,ddot]
+----
+links to ..has subtype.. depends on
+links to ..has subtype.. required by
+depends on ..has inverse.. required by
+----
+
+The explicit inverse puts `required by` on the other side of `depends on`, but the second line placed it on the same side.
+ddot.it still reads this, but one of the statements is almost certainly the wrong way round, so each statement that places such a relation gets a yellow warning.
+The tooltip links to the other statements; kbd:[Alt+Enter] offers to go to them.
+
+[[warnings-cli]]
+=== The same warnings on the command line
+
+Every warning in this chapter, and the linter's pitfalls (lines that look like triples but are not, such as `S ... O`), comes from the ddot.it core library, not from the plugin.
+`ddot lint <dir>` prints the same warnings for the same lines, so a CI build can check what the editor shows.
+
 [[completion]]
 === Smart completion
 
