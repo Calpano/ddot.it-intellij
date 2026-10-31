@@ -144,7 +144,7 @@
                 rename of all case variants. Alias statements (<code>Foo ..has alias..
                 foo</code>, <code>..is alias of..</code>) are exempt.</li>
             <li>Security: the bundled <code>jackson-databind</code> 3.x is updated from
-                3.1.4 to 3.2.3, fixing seven advisories (among them GHSA-cxp5-3px4-pw24
+                3.1.4 to 3.2.4, fixing seven advisories (among them GHSA-cxp5-3px4-pw24
                 and GHSA-wv8q-qhhj-9h54).</li>
             <li>The triple index now records the line each triple is stated on
                 (index version 5, rebuilt automatically).</li>
