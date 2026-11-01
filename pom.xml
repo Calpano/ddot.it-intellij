@@ -63,13 +63,10 @@
              (com.graphinout.base.cj.document.CjDocuments + reader-ddot's DDotOutput).
              reader-ddot pulls in `base` and the whole conversion stack transitively.
 
-             Keep this in lockstep with the sibling graphinout checkout's own <version>:
-             graphinout publishes to no repository, so these artifacts come from a local
-             `mvn install` there, and pinning an older snapshot silently keeps building
-             against a stale jar. 0.2.2-SNAPSHOT is the first reader-ddot that parses via
+             A release on Maven Central. 0.2.2 is the first reader-ddot that parses via
              ddot-core's DdotTokenizer/DdotEventExporter instead of its own hand-rolled
-             grammar, so CJ -> ddot conversion here now shares this plugin's parser. -->
-        <graphinout.version>0.2.2-SNAPSHOT</graphinout.version>
+             grammar, so CJ -> ddot conversion here shares this plugin's parser. -->
+        <graphinout.version>0.2.2</graphinout.version>
         <idea.lib.dir>${project.build.directory}/idea-lib</idea.lib.dir>
         <!--
             Structure-preserving unpack of the same ideaIC zip (build.txt + lib/**),
@@ -337,8 +334,8 @@
         <dependency>
             <groupId>it.ddot</groupId>
             <artifactId>ddotit-core</artifactId>
-            <!-- A release, published to GitHub Packages (maven.pkg.github.com/calpano/ddot.it-java-core). -->
-            <version>0.3.0</version>
+            <!-- A release on Maven Central. -->
+            <version>0.3.1</version>
         </dependency>
         <!--
             The knowledge model (Kgraph, Kedge, TripleEvent2Kgraph), split out of ddotit-core in 0.3.0;
@@ -348,9 +345,8 @@
         <dependency>
             <groupId>it.ddot</groupId>
             <artifactId>ddotit-kbase</artifactId>
-            <!-- Keep in lockstep with ../ddot.it-java-kbase's <version>. It publishes to no repository
-                 yet, so this resolves from a local `mvn install` there. -->
-            <version>0.3.0-SNAPSHOT</version>
+            <!-- A release on Maven Central. -->
+            <version>0.3.0</version>
         </dependency>
 
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>annotations</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/annotations.jar</systemPath></dependency>
