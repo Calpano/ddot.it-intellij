@@ -244,6 +244,30 @@
                 <artifactId>lz4-java</artifactId>
                 <version>1.12.1</version>
             </dependency>
+            <!-- SHIPPED: graphinout's Guava is shaded into the plugin jar, but the test
+                 framework's 33.5.0 wins Maven's version mediation, being declared first.
+                 33.5.0 → 33.7.2-jre: GHSA-xxph-c9ww-hj94 (CVE-2026-102554). -->
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>33.7.2-jre</version>
+            </dependency>
+            <!-- Test only (via JUnit's vintage engine). 9.8 → 9.11.1: CVE-2026-110591. -->
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm</artifactId>
+                <version>9.11.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-tree</artifactId>
+                <version>9.11.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-analysis</artifactId>
+                <version>9.11.1</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -266,6 +290,15 @@
             <artifactId>test-framework</artifactId>
             <version>${intellij.testframework.version}</version>
             <scope>test</scope>
+            <exclusions>
+                <!-- JetBrains' repackaged ASM 9.6.1 has CVE-2026-110591, and JetBrains
+                     publishes no fixed build. The tests run fine on the platform's own
+                     ASM (intellij.libraries.asm from the unpacked IDE). -->
+                <exclusion>
+                    <groupId>org.jetbrains.intellij.deps</groupId>
+                    <artifactId>asm-all</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -1049,6 +1082,13 @@ or point an existing checkout at the build:
                         <!-- ByteBufferUtil reaches sun.nio.Cleaner reflectively. -->
                         --add-exports=java.base/sun.nio=ALL-UNNAMED
                         --add-opens=java.base/sun.nio=ALL-UNNAMED
+                        <!--
+                            On Java 25 it looks for jdk.internal.ref.Cleaner instead. Without
+                            access, unmapping index files fails and the next run finds a
+                            corrupted index under target/idea-home/system.
+                        -->
+                        --add-exports=java.base/jdk.internal.ref=ALL-UNNAMED
+                        --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED
                         --add-opens=java.base/java.lang.ref=ALL-UNNAMED
                         --add-opens=java.base/java.net=ALL-UNNAMED
                         --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED
