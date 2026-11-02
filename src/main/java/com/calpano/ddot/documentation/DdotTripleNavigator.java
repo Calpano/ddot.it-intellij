@@ -24,6 +24,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.swing.JList;
+
 /**
  * Links in the entity popup and where they lead. A link names a triple pattern
  * ({@code subject/relation/object}, an empty slot is a wildcard); following it
@@ -77,7 +79,14 @@ final class DdotTripleNavigator {
         JBPopupFactory.getInstance()
                 .createPopupChooserBuilder(locations)
                 .setTitle("Stated In")
-                .setRenderer(SimpleListCellRenderer.create("", labels::get))
+                .setRenderer(new SimpleListCellRenderer<>() {
+                    @Override
+                    public void customize(@NotNull JList<? extends DdotKgraphService.Location> list,
+                                          DdotKgraphService.Location loc, int index,
+                                          boolean selected, boolean hasFocus) {
+                        setText(labels.get(loc));
+                    }
+                })
                 .setItemChosenCallback(loc -> open(project, loc))
                 .createPopup()
                 .showInFocusCenter();

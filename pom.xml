@@ -1093,6 +1093,8 @@ or point an existing checkout at the build:
                         --add-opens=java.base/java.net=ALL-UNNAMED
                         --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED
                         --add-exports=java.base/jdk.internal.vm=ALL-UNNAMED
+                        <!-- The platform loads native code through JNA; Java 25 warns otherwise. -->
+                        --enable-native-access=ALL-UNNAMED
                         --add-opens=java.desktop/java.awt=ALL-UNNAMED
                         --add-opens=java.desktop/java.awt.event=ALL-UNNAMED
                         --add-opens=java.desktop/sun.awt=ALL-UNNAMED
