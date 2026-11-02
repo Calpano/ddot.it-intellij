@@ -10,3 +10,122 @@ See the `<change-notes>` element in link:src/main/resources/META-INF/plugin.xml[
 Entries are listed newest first, one `<h3>` heading per version.
 
 The same notes appear on the plugin's page under _Settings → Plugins → ddot.it → What's New_.
+
+
+== 0.1.4 — Project-Wide Knowledge Graph
+
+Support for CDS 'replaces'/'is replaced by'::
+A stronger form of 'has alias'/'is alias of'.
+Using item that are stated to be replaced by others get a yellow warning and can be auto-fixed.
+
+Sections in the Structure view::
+AsciiDoc-style section headings (`= Title`, `== Title`, …) now form a tree in the Structure tool window and the file structure popup.
+Subjects are listed under the section they appear in.
+Skipped heading levels are ignored — a heading nests under the nearest preceding heading with fewer `=`.
+Headings inside `ddot.it/off` regions are left out.
+A subject used in two sections appears under both.
+
+Entity popup::
+Hovering a subject, relation or object — in a `.ddot` file or a ddot block in Markdown/AsciiDoc — shows what the project knowledge graph states about it:
+`rel → obj1, obj2` per relation, and `→ rel: x, y` for the inverse direction `(x, rel, entity)`.
+Every item links to where the triple is stated; with several places, a chooser lists them.
+Hovering a relation lists the triples that use it.
+Unsaved edits are included.
+
+Reformat makes every triple self-contained::
+_Reformat Code_ and _Format Document_ now also give each continuation line its inherited subject (`..p.. o` → `s ..p.. o`) before normalizing spacing.
+
+Project-wide rename::
+Shift+F6 on a subject, relation or object — in a `.ddot` file, an embedded block, the Structure view, or via _Rename…_ in the entity popup — renames every exact occurrence across `.ddot` files and ddot blocks in Markdown and AsciiDoc, in every role including metadata keys and values.
+Prose, `ddot.it/off` regions, `!!block` bodies and commands are never touched.
+Renaming to an existing name warns about the merge.
+Invalid names are refused.
+One undo reverts every file.
+Find Usages (Alt+F7) uses the same search.
+Specified in `feature-rename.adoc`.
+
+Cardinality checking::
+Bounds on a relation — `rel ..range.. T ,, ..cardinality.. 1` (also `doc:range`, `min cardinality`, `max cardinality`), `rel ..min cardinality.. n`, `rel ..max cardinality.. n`, `..has type.. required`, `..has type.. single valued` — are checked across the project.
+They apply to every instance of the relation's domain (`rel ..domain.. T`, also `doc:domain`, subtypes included) and to every subject using the relation; an instance without any value violates a stated minimum.
+Violating lines get a yellow warning.
+The tooltip links to where the bound is stated, and Alt+Enter offers _Go to cardinality statement_.
+Non-numeric bounds are flagged too.
+
+Warnings on relations with direction issues::
+CDS (and many other ontologies) use a relation hierarchy. Inverse relation plus hierarchy can lead to confusing inconsistencies, e.g. is a relation and its inverse have the same, directed hierarchy parent.
+
+Common base for plugin and ddot.it CLI tool::
+A new ddot.it core library is used by the IntelliJ plugin and a ddot.it CLI tool (`ddot lint`).
+
+Consistent casing check::
+A subject, relation, object or metadata name that also occurs in the project in different casing (`Project Eagle` / `project eagle`) gets a yellow warning on every spelling; the tooltip links to where the other spellings are used, and Alt+Enter offers _Use '…' everywhere_, a project-wide rename of all case variants.
+Alias statements (`Foo ..has alias.. foo`, `..is alias of..`) are exempt.
+
+Security::
+Bundle dependencies are updated to fix CVEs.
+
+Triple index::
+The internal triple index records the line each triple is stated on.
+Warning popups use this information.
+
+
+== 0.1.3 — Connected JSON Conversion
+
+Connected JSON (CJ) → ddot.it conversion::
+Right-click a `+*.cj.json+` file in the Project view — or use Tools > ddot.it > _Convert Connected JSON (CJ) to ddot.it_ — to generate a sibling `.ddot` file.
+The translation is graphinout's canonical CJ-to-ddot.it mapping.
+
+* `+*.cj.json+` files are now recognised as a dedicated _CJ JSON_ file type backed by the bundled JSON language, so they get JSON syntax highlighting, structure and completion.
+* New Tools > ddot.it action _To Full Triples_: expand continuation lines by repeating the inherited subject so every line becomes a self-contained triple (metadata blocks and `ddot.it/off` regions are left untouched).
+* The editor now warns on an incomplete triple whose object slot is empty (e.g. `s ..p..`), which the event export would otherwise drop silently.
+* Added Marketplace plugin icons.
+
+
+== 0.1.2 — AsciiDoc Preview Fix
+
+* AsciiDoc preview: fixed a `+NoMethodError: undefined method 'context' for #<Array>+` that aborted rendering for any document containing a description list (`+term::+`).
+The Treeprocessor that rewrites `+[source,ddot]+` blocks now skips non-block children when walking the document tree (dlist entries expose their items as `+[terms, description]+` arrays rather than `AbstractBlock` instances).
+
+
+== 0.1.1 — Marketplace Compliance
+
+* Marketplace compliance: removed all uses of internal Markdown plugin APIs that blocked the 0.1.0 listing.
+** Markdown preview: `+```ddot+` fences are now coloured client-side by a stylesheet and JS injected via the public `browserPreviewExtensionProvider` extension point, replacing the previous `fenceGeneratingProvider` (`@ApiStatus.Internal`) integration.
+Visual result is identical; the colours no longer track the editor colour scheme dynamically (CSS can't read it), so they're now static defaults tuned for both Light and Darcula.
+** Fence language provider: dropped the `getInfoStringForLanguage` override (also internal).
+The default `null` return covers it; no user-visible flow exercised this hook.
+
+
+== 0.1.0 — AsciiDoc Preview
+
+* AsciiDoc preview support for ddot blocks.
+New Tools menu action _Install AsciiDoc Preview Extension_ drops a Ruby AsciidoctorJ extension into `+<project>/.asciidoctor/lib/+`; `+[ddot]+`, `+[ddotit]+` and `+[source,ddot|ddot.it|ddotit]+` blocks then render with the same role coloring as the editor and the Markdown preview, with titles, ids and roles preserved on the block.
+* Rouge lexer for ddot.it shipped alongside the extension — set `+:source-highlighter: rouge+` in your `.adoc` and `+[source,ddot]+` blocks dispatch through the standard Asciidoctor highlighter pipeline against the canonical token vocabulary (https://github.com/calpano/ddot.it/blob/main/test-data/tokens.md[tokens.md]).
+* Cross-implementation golden corpus at `ddot.it/test-data/cases/` — every case has `expected.body.html`, `expected.events.jsonl` and `expected.tokens.json`, asserted byte-equal by the Java preview renderer, the JSONL exporter, the Ruby preview renderer (canonical), and the Rouge / TextMate highlighters.
+* Fixes: continuation lines (`..pred.. obj`) now colour `pred` as the predicate, not the object (slot-advance bug); installed `.rb` files are now stamped with the plugin version on the first line so stale installs are easy to spot (`head -1 .asciidoctor/lib/ddot-extension.rb`).
+
+
+== 0.0.9 — Embedded ddot.it Blocks
+
+* Embed ddot.it inside Markdown fenced code blocks (`+```ddot+`, `+```ddot.it+`, `+```ddotit+`) and AsciiDoc listing blocks (`+[source,ddot]+`, `+[ddot.it]+`, …).
+Highlighting, completion, formatting, rename and find-usages all work inside the embedded fragment.
+* Honour `ddot.it/off` and `ddot.it/on`: lines inside an off span are dimmed in the editor, collapsible as a fold, hidden from the structure view, and skipped by the _Export as JSON_ action.
+* Markdown preview: `+```ddot+` fences now render with the same role-aware coloring (subject / predicate / object / metadata / command) as the editor, tracking the active color scheme.
+
+
+== 0.0.8 — Minor
+
+* Minor change in logging.
+
+
+== 0.0.7 — Maintenance
+
+* Refactor away from deprecated IntelliJ APIs.
+* Annotator now logs identifying context (file path, element class, range, text snippet) when it fails.
+
+
+== 0.0.6 — Initial Marketplace Release
+
+* Real PSI, formatter, folding, structure view, completion, JSONL export.
+* Rename refactoring: Shift+F6 on an entity renames every occurrence in the file.
+* Auto-popup of continuation predicates after pressing Enter on a complete triple.

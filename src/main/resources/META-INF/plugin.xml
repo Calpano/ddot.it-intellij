@@ -61,93 +61,61 @@
     ]]></description>
 
     <change-notes><![CDATA[
-        <h3>Unreleased</h3>
+        <h3>0.1.4 — Project-Wide Knowledge Graph</h3>
         <ul>
-            <li><b>Replaced names.</b> A name the project says is replaced
-                (<code>a ..is replaced by.. has type</code>, also via <code>replaces</code>,
-                followed through chains) gets a yellow warning wherever it is used, linking to
-                the statement; Alt+Enter replaces it, here or in the whole file. Lint rule
-                DL024 from the core analysis, so <code>ddot lint</code> reports it too.</li>
-            <li><b>Sections in the Structure view.</b> AsciiDoc-style section
-                headings (<code>= Title</code>, <code>== Title</code>, …,
-                also the symmetric <code>== Title ==</code>) now form a tree
-                in the Structure tool window and the file structure popup.
-                Section titles render in bold; subjects are listed under the
-                section they appear in. Skipped heading levels are ignored —
-                a heading nests under the nearest preceding heading with fewer
-                <code>=</code>. Headings inside <code>ddot.it/off</code>
-                regions are left out.</li>
-            <li>Subjects are now deduplicated per section instead of per file,
-                so a subject used in two sections appears under both.</li>
+            <li><b>Support for CDS 'replaces'/'is replaced by'.</b> A stronger form of 'has
+                alias'/'is alias of'. Using item that are stated to be replaced by others get a
+                yellow warning and can be auto-fixed.</li>
+            <li><b>Sections in the Structure view.</b> AsciiDoc-style section headings (<code>=
+                Title</code>, <code>== Title</code>, …) now form a tree in the Structure tool window
+                and the file structure popup. Subjects are listed under the section they appear in.
+                Skipped heading levels are ignored — a heading nests under the nearest preceding
+                heading with fewer <code>=</code>. Headings inside <code>ddot.it/off</code> regions
+                are left out. A subject used in two sections appears under both.</li>
             <li><b>Entity popup.</b> Hovering a subject, relation or object — in a
-                <code>.ddot</code> file or a ddot block in Markdown/AsciiDoc — shows
-                what the project knowledge graph states about it:
-                <code>rel &#8594; obj1, obj2</code> per relation, and
-                <code>&#8594; rel: x, y</code> for the inverse direction
-                <code>(x, rel, entity)</code>. Every item links to where the triple is
-                stated; with several places, a chooser lists them. Hovering a
-                relation lists the triples that use it. Alt+Enter on an entity
-                (<i>Show what the project states about …</i>) opens the same popup on
-                demand. Unsaved edits are included.</li>
-            <li><b>Reformat makes every triple self-contained.</b> <i>Reformat Code</i>
-                and <i>Format Document</i> now also give each continuation line its
-                inherited subject (<code>..p.. o</code> &#8594; <code>s ..p.. o</code>) before
-                normalizing spacing. Metadata blocks, <code>ddot.it/off</code> regions,
-                <code>!!block</code> bodies and prose are left alone. <i>To Full
-                Triples</i> now uses the spec parser to find continuation lines.</li>
-            <li><b>Project-wide rename.</b> Shift+F6 on a subject, relation or object —
-                in a <code>.ddot</code> file, an embedded block, the Structure view, or
-                via <i>Rename…</i> in the entity popup — renames every exact occurrence
-                across <code>.ddot</code> files and ddot blocks in Markdown and AsciiDoc,
-                in every role including metadata keys and values. Prose,
-                <code>ddot.it/off</code> regions, <code>!!block</code> bodies and commands
-                are never touched. Names that differ only in letter case are listed in
-                the dialog (unchecked checkbox) and in their own preview group, and a
-                notification reports what happened to them. Renaming to an existing
-                name warns about the merge. Invalid names are refused. One undo
-                reverts every file. Find Usages (Alt+F7) uses the same search.
-                Specified in <code>feature-rename.adoc</code>.</li>
-            <li><b>Cardinality checking.</b> Bounds on a relation —
-                <code>rel ..range.. T ,, ..cardinality.. 1</code> (also
-                <code>doc:range</code>, <code>min cardinality</code>, <code>max
-                cardinality</code>), <code>rel ..min cardinality.. n</code>,
-                <code>rel ..max cardinality.. n</code>, <code>..has type.. required</code>,
-                <code>..has type.. single valued</code> — are checked across the project.
-                They apply to every instance of the relation's domain
-                (<code>rel ..domain.. T</code>, also <code>doc:domain</code>, subtypes
-                included) and to every subject using the relation; an instance without
-                any value violates a minimum. Violating lines get a yellow warning, also
-                in embedded blocks; the tooltip links to where the bound is stated, and
-                Alt+Enter offers <i>Go to cardinality statement</i>. Non-numeric bounds
-                are flagged too. What counts is what the project entails under CDS:
-                values stated through an alias, a sub-relation or an inverse
-                (<code>tail ..is part of.. rex</code>), instances of a subtype of the
-                domain; two names of one thing (<code>same as</code>) count once, chains
-                are not followed. Alternative names (<code>lowerBound</code>,
-                <code>hasType</code>, …) count only where a file declares them with
-                <code>has alias</code> or <code>is alias of</code>. The triple index now
-                also stores metadata pairs (index version 6).</li>
-            <li><b>Relations without a direction.</b> A relation that ends up under both
-                <code>links to</code> and <code>is linked from</code> — for example
-                through an explicit inverse that contradicts its side — gets a yellow
-                warning on every statement that places it.</li>
-            <li><b>One source of warnings.</b> Every warning now comes from the core
-                library's analysis, which <code>ddot lint</code> also prints, so the
-                editor and the command line agree. This also shows the linter's
-                report-only pitfalls (DL010–DL012: dot runs and separators that make a
-                line silently not a triple), which the editor did not show before.</li>
-            <li><b>Letter-case check.</b> A subject, relation, object or metadata name
-                that also occurs in the project in different letter case
-                (<code>Project Eagle</code> / <code>project eagle</code>) gets a yellow
-                warning on every spelling; the tooltip links to where the other spellings
-                are used, and Alt+Enter offers <i>Use '…' everywhere</i>, a project-wide
-                rename of all case variants. Alias statements (<code>Foo ..has alias..
-                foo</code>, <code>..is alias of..</code>) are exempt.</li>
-            <li>Security: the bundled <code>jackson-databind</code> 3.x is updated from
-                3.1.4 to 3.2.4, fixing seven advisories (among them GHSA-cxp5-3px4-pw24
-                and GHSA-wv8q-qhhj-9h54).</li>
-            <li>The triple index now records the line each triple is stated on
-                (index version 5, rebuilt automatically).</li>
+                <code>.ddot</code> file or a ddot block in Markdown/AsciiDoc — shows what the
+                project knowledge graph states about it: <code>rel → obj1, obj2</code> per relation,
+                and <code>→ rel: x, y</code> for the inverse direction <code>(x, rel,
+                entity)</code>. Every item links to where the triple is stated; with several places,
+                a chooser lists them. Hovering a relation lists the triples that use it. Unsaved
+                edits are included.</li>
+            <li><b>Reformat makes every triple self-contained.</b> <i>Reformat Code</i> and
+                <i>Format Document</i> now also give each continuation line its inherited subject
+                (<code>..p.. o</code> → <code>s ..p.. o</code>) before normalizing spacing.</li>
+            <li><b>Project-wide rename.</b> Shift+F6 on a subject, relation or object — in a
+                <code>.ddot</code> file, an embedded block, the Structure view, or via
+                <i>Rename…</i> in the entity popup — renames every exact occurrence across
+                <code>.ddot</code> files and ddot blocks in Markdown and AsciiDoc, in every role
+                including metadata keys and values. Prose, <code>ddot.it/off</code> regions,
+                <code>!!block</code> bodies and commands are never touched. Renaming to an existing
+                name warns about the merge. Invalid names are refused. One undo reverts every file.
+                Find Usages (Alt+F7) uses the same search. Specified in
+                <code>feature-rename.adoc</code>.</li>
+            <li><b>Cardinality checking.</b> Bounds on a relation — <code>rel ..range.. T ,,
+                ..cardinality.. 1</code> (also <code>doc:range</code>, <code>min cardinality</code>,
+                <code>max cardinality</code>), <code>rel ..min cardinality.. n</code>, <code>rel
+                ..max cardinality.. n</code>, <code>..has type.. required</code>, <code>..has type..
+                single valued</code> — are checked across the project. They apply to every instance
+                of the relation's domain (<code>rel ..domain.. T</code>, also
+                <code>doc:domain</code>, subtypes included) and to every subject using the relation;
+                an instance without any value violates a stated minimum. Violating lines get a
+                yellow warning. The tooltip links to where the bound is stated, and Alt+Enter offers
+                <i>Go to cardinality statement</i>. Non-numeric bounds are flagged too.</li>
+            <li><b>Warnings on relations with direction issues.</b> CDS (and many other
+                ontologies) use a relation hierarchy. Inverse relation plus hierarchy can lead to
+                confusing inconsistencies, e.g. is a relation and its inverse have the same,
+                directed hierarchy parent.</li>
+            <li><b>Common base for plugin and ddot.it CLI tool.</b> A new ddot.it core library
+                is used by the IntelliJ plugin and a ddot.it CLI tool (<code>ddot lint</code>).</li>
+            <li><b>Consistent casing check.</b> A subject, relation, object or metadata name
+                that also occurs in the project in different casing (<code>Project Eagle</code> /
+                <code>project eagle</code>) gets a yellow warning on every spelling; the tooltip
+                links to where the other spellings are used, and Alt+Enter offers <i>Use '…'
+                everywhere</i>, a project-wide rename of all case variants. Alias statements
+                (<code>Foo ..has alias.. foo</code>, <code>..is alias of..</code>) are exempt.</li>
+            <li><b>Security.</b> Bundle dependencies are updated to fix CVEs.</li>
+            <li><b>Triple index.</b> The internal triple index records the line each triple is
+                stated on. Warning popups use this information.</li>
         </ul>
         <h3>0.1.3</h3>
         <ul>
