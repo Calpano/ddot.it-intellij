@@ -42,12 +42,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Calpano/ddot.it
+          # Pinned, so CI builds from the same sources as a local build. Bump
+          # to the sibling's pushed HEAD (`git rev-parse HEAD`) when it changes.
+          ref: 06241ef62d69e6635bd7b573ec78bbb8f707b478
           path: ddot.it
 
       - name: Checkout ddot.it-syntax-tools (canonical Rouge lexer)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Calpano/ddot.it-syntax-tools
+          # Pinned, so CI builds from the same sources as a local build. Bump
+          # to the sibling's pushed HEAD (`git rev-parse HEAD`) when it changes.
+          ref: 6d241b0171623e8fd73e37ecfee0bb6ffb317faf
           path: ddot.it-syntax-tools
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
