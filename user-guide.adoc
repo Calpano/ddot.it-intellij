@@ -18,7 +18,7 @@ Each line is a triple — `subject ..predicate.. object` — written with double
 [[install]]
 == Installation
 
-The plugin targets IntelliJ IDEA 2026.2 (build 262).
+The plugin runs on IntelliJ IDEA 2026.2 (build 262) and every later release.
 
 .Install options
 * *From the Marketplace* — _Settings → Plugins → Marketplace_, search for _ddot.it_.

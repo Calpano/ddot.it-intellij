@@ -7,12 +7,14 @@
          ============================================================ -->
     <id>com.calpano.ddot</id>
     <name>ddot.it</name>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
     <vendor url="https://ddot.it">ddot.it by Calpano</vendor>
 
-    <!-- IDE compatibility range. Matches pom.xml `intellij.version=2026.2`.
-         Update on retarget; otherwise users on newer IDEs get an "incompatible"
-         banner instead of a broken install.
+    <!-- IDE compatibility range: 2026.2 (branch 262) and every later IDE. There is
+         deliberately NO until-build, so new IDE releases can install the plugin without
+         a re-release. The plugin is compiled and tested against pom.xml's
+         `intellij.version` (2026.3 as of 0.1.5); run `mvn -Pverify verify` against
+         each new IDE to catch removed APIs before users do.
 
          since-build is 262, not the older 242: 2026.2 (branch 262) is the first
          platform to run on Java 25, and pom.xml compiles to that level, so the
@@ -23,7 +25,7 @@
          To widen the range, LOWER pom.xml's <java.version> to the JBR of the new
          floor in the same commit: dropping to since-build 242 buys 2024.2-2026.2
          but costs Java 25, since every branch from 242 to 261 runs Java 21. -->
-    <idea-version since-build="262" until-build="262.*"/>
+    <idea-version since-build="262"/>
 
     <description><![CDATA[
         <p>Authoring support for <a href="https://ddot.it">ddot.it — Knowledge Graph Notation</a>, a minimal text format
@@ -61,6 +63,16 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.1.5 — Open-Ended IDE Compatibility</h3>
+        <ul>
+            <li><b>Works with IntelliJ 2026.3 and later IDEs.</b> The plugin no longer caps the
+                IDE version: it installs on 2026.2 and every later release. Built and tested
+                against 2026.3.</li>
+            <li><b>Up-to-date ddot highlighting in the AsciiDoc preview.</b> 0.1.4 bundled an
+                outdated syntax highlighter for <code>[source,ddot]</code> blocks that did not
+                treat Unicode whitespace as whitespace. 0.1.5 bundles the current one.</li>
+            <li>Updated bundled libraries.</li>
+        </ul>
         <h3>0.1.4 — Project-Wide Knowledge Graph</h3>
         <ul>
             <li><b>Support for CDS 'replaces'/'is replaced by'.</b> A stronger form of 'has
