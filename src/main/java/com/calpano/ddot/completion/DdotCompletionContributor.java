@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  *   <li>slot detection via the parse automaton ({@link DdotContext}), seeded with
  *       the document state at the start of the caret line;</li>
  *   <li>value completion from the project-wide vocabulary, in the spec's total
- *       deterministic order (the list order of {@link DdotEntityIndex#ranked} plus
+ *       deterministic order (the list order of {@link DdotCandidates#ranked} plus
  *       the fit boost), pinned end-to-end by a custom sorter;</li>
  *   <li>command completion after any command spelling prefix ({@code !!},
  *       {@code ddot.it/}, {@code http://ddot.it/}, {@code https://ddot.it/});</li>
@@ -93,7 +93,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
     /**
      * Key 2 of the Autocomplete Specification's ranking, "Fit": a candidate the corpus already links to this line
      * outranks every candidate that merely occupies the right slot. Must exceed the whole priority range
-     * {@link DdotEntityIndex} produces (recency, pool, locality and frequency combined), or a frequent name from an
+     * {@link DdotCandidates} produces (recency, pool, locality and frequency combined), or a frequent name from an
      * early pool could outrank a fitting one.
      */
     private static final double CONTEXT_BOOST = 10_000.0;
@@ -197,7 +197,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
     /**
      * @param inFile whether {@code entity} already appears somewhere in the file being
      *               edited. Only the type text changes; the ordering credit for the same
-     *               fact is applied upstream, in {@link DdotEntityIndex#ranked}. Telling
+     *               fact is applied upstream, in {@link DdotCandidates#ranked}. Telling
      *               the two apart matters when a name is ambiguous project-wide — "in
      *               file" says this is the one you have been writing about.
      */
@@ -265,7 +265,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
     }
 
     /**
-     * The final value-candidate order: {@link DdotEntityIndex#ranked} with the fit boost folded in, context-only names
+     * The final value-candidate order: {@link DdotCandidates#ranked} with the fit boost folded in, context-only names
      * appended, the already-typed text dropped (case-insensitively — offering it back would change nothing), and ties
      * broken alphabetically so the order is total.
      */
@@ -273,7 +273,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
                                                     Set<String> contextNames) {
         List<Candidate> out = new ArrayList<>();
         Set<String> emitted = new HashSet<>();
-        for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(file, role)) {
+        for (DdotCandidates.Ranked r : DdotCandidates.ranked(file, role, prefix)) {
             if (r.name().equalsIgnoreCase(prefix)) continue;
             double priority = contextNames.contains(r.name())
                     ? r.priority() + CONTEXT_BOOST : r.priority();
@@ -428,7 +428,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
         if (role != null && !beforeMetaOpener && (afterDotDot == null || !prefix.isEmpty())) {
             // One set for the whole batch: namesInFile walks the PSI, and the
             // candidate list routinely runs to hundreds of entries.
-            Set<String> localNames = DdotEntityIndex.namesInFile(file);
+            Set<String> localNames = DdotCandidates.namesInFile(file);
             for (Candidate c : mergedCandidates(file, role, prefix, contextNames)) {
                 out.add(entityElement(c.name(), role, replaceStart, localNames.contains(c.name())));
             }
@@ -436,7 +436,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
 
         if (afterDotDot != null) {
             DdotSlot pool = role == DdotSlot.META_RELATION ? DdotSlot.META_RELATION : DdotSlot.RELATION;
-            for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(file, pool)) {
+            for (DdotCandidates.Ranked r : DdotCandidates.ranked(file, pool)) {
                 out.add(continuationPredicateElement(r.name(), lineStart + afterDotDot));
             }
         }
@@ -444,7 +444,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
         // Meta relation slot before its `..` opener (after `,,`, after `;;`, or on
         // a fresh line inside a `,,` block): offer `..mr..` with the skeleton.
         if (beforeMetaOpener && prefix.isEmpty()) {
-            for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(file, DdotSlot.META_RELATION)) {
+            for (DdotCandidates.Ranked r : DdotCandidates.ranked(file, DdotSlot.META_RELATION)) {
                 out.add(continuationPredicateElement(r.name(), replaceStart));
             }
         }
@@ -452,7 +452,7 @@ public final class DdotCompletionContributor extends CompletionContributor {
         // Fresh line in continuation context: surface `..rel..` predicates.
         if (docState == DdotContext.DocState.NORMAL && prefix.isEmpty() && beforeCursor.isBlank()
                 && DdotContext.isContinuationContext(doc, lineNum)) {
-            for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(file, DdotSlot.RELATION)) {
+            for (DdotCandidates.Ranked r : DdotCandidates.ranked(file, DdotSlot.RELATION)) {
                 out.add(continuationPredicateElement(r.name(), replaceStart));
             }
         }

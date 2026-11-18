@@ -20,7 +20,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import it.ddot.core.lint.DdotAnalysis;
+import com.calpano.kbase.lint.DdotAnalysis;
 import it.ddot.core.lint.Finding;
 import it.ddot.core.lint.Location;
 import it.ddot.core.lint.Severity;

@@ -323,14 +323,15 @@ Completion ─▶ Project KB service ─▶ reads per-file triples from the inde
 Incrementality is preserved by the KB's own per-source primitive: on a
 `FileBasedIndex` change for file `F`, the service calls `kgraph.removeBySource(F)`
 (drops `F`'s edges + endpoint provenance; predicate vocab survives), re-adds from
-the new per-file index value, then re-runs `kgraph.inference()`. No full rebuild —
+the new per-file index value. A `TripleIndex` on top follows the graph, and its CDS
+reasoner catches up on its next question; nothing inferred is stored. No full rebuild —
 this marries IntelliJ's per-file re-indexing with the KB query model. Queries use
 the K-API directly: SPO `pattern` (incl. `Prefix`/`Initials`), conjunctive `query`
 with shared `Variable` bindings (the joins), and JSON-data predicates.
 
-NOTE: the mem `Kgraph` synchronizes structural writes but *not* reads, so the
-service must establish a happens-before barrier (publish the updated graph) before
-a completion query reads it.
+NOTE: since `com.calpano:kbase`, the mem `Kgraph` guards reads and writes with one
+read-write lock, and its `TripleIndex` reads under the same lock. The service only
+synchronizes its own state (dirty set, analysis cache).
 
 === The concrete change this forces
 
@@ -371,7 +372,7 @@ Components, mapping onto the division of labour:
 | Per-file full triples (`from, type, to`), extracted by the canonical `DdotEventExporter`. The IntelliJ-owned, persisted, incremental extraction + storage half.
 
 | `DdotKgraphService` (project service)
-| Assembles the per-file triples into a javalib `Kgraph` via `TripleEvent2Kgraph` (file-URL provenance), runs `inference()`, and answers K-API `pattern` queries. The cross-file query half.
+| Assembles the per-file triples into a `com.calpano.kbase` `Kgraph` via `TripleEvent2Kgraph` (file-URL provenance). A `TripleIndex` answers stated-triple patterns; its CDS reasoner answers entailments such as the `has subtype` hierarchy. The cross-file query half.
 
 | `DdotCompletionContributor`
 | Object-slot completion calls `DdotKgraphService.objectsForRelation`, boosting objects already used with the line's relation.
@@ -380,7 +381,7 @@ Components, mapping onto the division of labour:
 Incrementality: a `VFS_CHANGES` listener records changed ddot/Markdown/AsciiDoc
 files; on the next query the service applies per-file deltas with
 `Kgraph.removeBySource(url)` + re-ingest of just that file (drops the old
-contribution, predicate vocab survives), then re-runs `inference()`. The initial
+contribution, predicate vocab survives); the index follows, the reasoner catches up lazily. The initial
 graph is a full build; thereafter only changed files are reprocessed — IntelliJ's
 per-file re-indexing married to the KB's per-source update.
 

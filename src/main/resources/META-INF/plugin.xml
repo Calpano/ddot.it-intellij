@@ -314,12 +314,12 @@
                 language="ddot.it"
                 implementationClass="com.calpano.ddot.completion.DdotCompletionContributor"/>
 
-        <!-- Project-wide vocabulary index for completion: subjects/predicates/objects
-             from every .ddot file and every ddot block embedded in Markdown/AsciiDoc. -->
+        <!-- Project-wide index of command names (!!this, !!block, …) for command completion.
+             Every other completion name comes from the knowledge graph (DdotVocabulary). -->
         <fileBasedIndex implementation="com.calpano.ddot.index.DdotEntityIndex"/>
 
-        <!-- Per-file full triples; assembled into a project Kgraph (DdotKgraphService)
-             for graph-aware, context-sensitive completion queries. -->
+        <!-- Per-file full triples; assembled into the project's kbase Kgraph (DdotKgraphService),
+             which every completion name and graph-aware query comes from. -->
         <fileBasedIndex implementation="com.calpano.ddot.index.DdotTripleIndex"/>
 
         <formattingService

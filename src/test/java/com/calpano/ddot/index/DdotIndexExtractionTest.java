@@ -2,6 +2,10 @@ package com.calpano.ddot.index;
 
 import it.ddot.core.event.DdotEvent;
 import it.ddot.core.io.DdotParser;
+import com.calpano.ddot.completion.DdotKgraphService;
+import com.calpano.ddot.completion.DdotVocabulary;
+import com.calpano.ddot.completion.DdotVocabulary.Pool;
+import com.calpano.kbase.inmem.Kgraph;
 import org.junit.Test;
 
 import java.util.List;
@@ -29,22 +33,29 @@ public final class DdotIndexExtractionTest {
                 "Alice ..knows.. Bob",
                 "Bob ..likes.. Tea",
                 "```");
-        Map<String, Map<String, Integer>> vocab = DdotEntityIndex.vocabulary("md", md);
-        assertEquals(Set.of("Alice", "Bob"), vocab.get("S").keySet());
-        assertEquals(Set.of("knows", "likes"), vocab.get("P").keySet());
-        assertEquals(Set.of("Bob", "Tea"), vocab.get("O").keySet());
+        DdotVocabulary vocab = vocabularyOf("md", md);
+        assertEquals(Set.of("Alice", "Bob"), vocab.counts(Pool.SUBJECT).keySet());
+        assertEquals(Set.of("knows", "likes"), vocab.counts(Pool.RELATION).keySet());
+        assertEquals(Set.of("Bob", "Tea"), vocab.counts(Pool.OBJECT).keySet());
         // Bob is a subject once and an object once — counted per pool.
-        assertEquals(Integer.valueOf(1), vocab.get("S").get("Bob"));
-        assertEquals(Integer.valueOf(1), vocab.get("O").get("Bob"));
+        assertEquals(Integer.valueOf(1), vocab.counts(Pool.SUBJECT).get("Bob"));
+        assertEquals(Integer.valueOf(1), vocab.counts(Pool.OBJECT).get("Bob"));
     }
 
     @Test
-    public void vocabularyIncludesPredicateOnIncompleteTriple() {
-        // No object yet — the relation is still useful for completion.
-        Map<String, Map<String, Integer>> vocab = DdotEntityIndex.vocabulary("ddot", "Alice ..knows..");
-        assertEquals(Set.of("knows"), vocab.get("P").keySet());
-        assertEquals(Set.of("Alice"), vocab.get("S").keySet());
-        assertFalse(vocab.containsKey("O"));
+    public void vocabularyCountsStatementsAndMeta() {
+        DdotVocabulary vocab = vocabularyOf("ddot", String.join("\n",
+                "Alice ..knows.. Bob ,, ..since.. 2020",
+                "Alice ..knows.. Bob",
+                "Carol ..knows.. Bob ,, ..since.. 2021", ""));
+        // The same triple stated twice is one link with two locations: it counts twice.
+        assertEquals(Integer.valueOf(3), vocab.counts(Pool.RELATION).get("knows"));
+        assertEquals(Integer.valueOf(2), vocab.counts(Pool.SUBJECT).get("Alice"));
+        assertEquals(Integer.valueOf(2), vocab.counts(Pool.META_RELATION).get("since"));
+        assertEquals(Set.of("2020", "2021"), vocab.counts(Pool.META_OBJECT).keySet());
+        // Prefix lookup ignores case and keeps the counts.
+        assertEquals(java.util.Map.of("Alice", 2), vocab.withPrefix(Pool.SUBJECT, "al"));
+        assertTrue(vocab.withPrefix(Pool.SUBJECT, "x").isEmpty());
     }
 
     @Test
@@ -68,12 +79,20 @@ public final class DdotIndexExtractionTest {
                 "Hidden ..secret.. value",
                 "ddot.it/on",
                 "ddot.it/this ..is.. Active");
-        Map<String, Map<String, Integer>> vocab = DdotEntityIndex.vocabulary("ddot", src);
-        // Disabled-span words and the ddot.it/this command are not vocabulary.
-        assertFalse(vocab.getOrDefault("S", Map.of()).containsKey("Hidden"));
-        assertFalse(vocab.getOrDefault("P", Map.of()).containsKey("secret"));
-        assertFalse(vocab.getOrDefault("S", Map.of()).containsKey("ddot.it/this"));
-        assertEquals(Set.of("is"), vocab.get("P").keySet());
-        assertEquals(Set.of("Active"), vocab.get("O").keySet());
+        DdotVocabulary vocab = vocabularyOf("ddot", src);
+        // Disabled-span words and the ddot.it/this command (resolved to the file) are not vocabulary.
+        assertFalse(vocab.counts(Pool.SUBJECT).containsKey("Hidden"));
+        assertFalse(vocab.counts(Pool.RELATION).containsKey("secret"));
+        assertTrue(vocab.counts(Pool.SUBJECT).isEmpty());
+        assertEquals(Set.of("is"), vocab.counts(Pool.RELATION).keySet());
+        assertEquals(Set.of("Active"), vocab.counts(Pool.OBJECT).keySet());
+    }
+
+    /** What completion offers for one file's text: its triples read into a graph, as a vocabulary. */
+    static DdotVocabulary vocabularyOf(String extension, String text) {
+        String url = "temp:///test." + extension;
+        Kgraph g = new Kgraph("test");
+        DdotKgraphService.addTriples(g, url, DdotTripleIndex.extract(extension, text, "test." + extension));
+        return DdotVocabulary.of(g, Set.of(url));
     }
 }

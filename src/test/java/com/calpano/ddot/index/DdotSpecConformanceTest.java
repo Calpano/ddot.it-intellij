@@ -4,6 +4,10 @@ import it.ddot.core.embed.DdotEmbeds;
 import it.ddot.core.embed.LocatedTriple;
 import it.ddot.core.event.DdotTriple;
 import it.ddot.core.token.DdotTokenizer;
+import com.calpano.ddot.completion.DdotKgraphService;
+import com.calpano.ddot.completion.DdotVocabulary;
+import com.calpano.ddot.completion.DdotVocabulary.Pool;
+import com.calpano.kbase.inmem.Kgraph;
 import org.junit.Test;
 
 import java.util.List;
@@ -17,7 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Parse-Spec conformance of the plugin's <em>indexing</em> layer — {@link DdotEmbeds},
- * {@link DdotEntityIndex} and {@link DdotTripleIndex} — on edge inputs the shared golden
+ * {@link DdotEntityIndex}, {@link DdotTripleIndex} and the completion vocabulary read from it — on edge inputs the shared golden
  * corpus does not cover: host-level {@code !!off} / {@code !!on} that spans embedded
  * chunks, and command-name harvesting.
  *
@@ -50,11 +54,11 @@ public final class DdotSpecConformanceTest {
         assertTrue(chunks.get(0).startsOff());
         assertFalse(chunks.get(1).startsOff());
 
-        Map<String, Map<String, Integer>> vocab = DdotEntityIndex.vocabulary("adoc", adoc);
-        Set<String> subjects = vocab.getOrDefault("S", Map.of()).keySet();
+        DdotVocabulary vocab = vocabularyOf("adoc", adoc);
+        Set<String> subjects = vocab.counts(Pool.SUBJECT).keySet();
         assertTrue("real subject indexed: " + subjects, subjects.contains("Alice"));
         assertFalse("metavariable NOT indexed: " + subjects, subjects.contains("aaa"));
-        assertFalse(vocab.getOrDefault("P", Map.of()).containsKey("fooRel"));
+        assertFalse(vocab.counts(Pool.RELATION).containsKey("fooRel"));
     }
 
     @Test
@@ -78,8 +82,7 @@ public final class DdotSpecConformanceTest {
         assertTrue("off left open in chunk 1 keeps chunk 2 off", chunks.get(1).startsOff());
         assertFalse(chunks.get(2).startsOff());
 
-        Map<String, Map<String, Integer>> vocab = DdotEntityIndex.vocabulary("md", md);
-        Set<String> predicates = vocab.getOrDefault("P", Map.of()).keySet();
+        Set<String> predicates = vocabularyOf("md", md).counts(Pool.RELATION).keySet();
         assertEquals(Set.of("visible"), predicates);
         List<DdotTriple> triples = triples(DdotTripleIndex.extract("md", md, "test.md"));
         assertEquals(List.of(new DdotTriple("C", "visible", "D")), triples);
@@ -106,12 +109,12 @@ public final class DdotSpecConformanceTest {
     @Test
     public void commandNamesGoToTheirOwnPoolNotToVocabulary() {
         String src = "!!this ..status.. active\ns ..r.. ddot.it/Foo?q=1\n";
-        Map<String, Map<String, Integer>> vocab = DdotEntityIndex.vocabulary("ddot", src);
-        assertEquals(Set.of("this", "Foo"), vocab.getOrDefault("C", Map.of()).keySet());
-        // Commands stay OUT of the entity pools; ordinary names stay in.
-        assertTrue(vocab.getOrDefault("S", Map.of()).keySet().stream().noneMatch(n -> n.contains("this")));
-        assertEquals(Set.of("active"), vocab.getOrDefault("O", Map.of()).keySet());
-        assertEquals(Set.of("s"), vocab.getOrDefault("S", Map.of()).keySet());
+        Map<String, Map<String, Integer>> commands = DdotEntityIndex.vocabulary("ddot", src);
+        assertEquals(Set.of("this", "Foo"), commands.getOrDefault("C", Map.of()).keySet());
+        // Commands stay OUT of the entity pools, even as a resolved `!!this`; ordinary names stay in.
+        DdotVocabulary vocab = vocabularyOf("ddot", src);
+        assertEquals(Set.of("active"), vocab.counts(Pool.OBJECT).keySet());
+        assertEquals(Set.of("s"), vocab.counts(Pool.SUBJECT).keySet());
     }
 
     @Test
@@ -129,5 +132,13 @@ public final class DdotSpecConformanceTest {
 
     private static List<DdotTriple> triples(List<LocatedTriple> located) {
         return located.stream().map(LocatedTriple::triple).toList();
+    }
+
+    /** What completion offers for one file's text: its triples read into a graph, as a vocabulary. */
+    static DdotVocabulary vocabularyOf(String extension, String text) {
+        String url = "temp:///test." + extension;
+        Kgraph g = new Kgraph("test");
+        DdotKgraphService.addTriples(g, url, DdotTripleIndex.extract(extension, text, "test." + extension));
+        return DdotVocabulary.of(g, Set.of(url));
     }
 }

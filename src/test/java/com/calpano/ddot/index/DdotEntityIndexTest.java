@@ -1,5 +1,6 @@
 package com.calpano.ddot.index;
 
+import com.calpano.ddot.completion.DdotCandidates;
 import com.calpano.ddot.completion.DdotKgraphService;
 import com.calpano.ddot.completion.DdotRecentRelations;
 import com.calpano.ddot.psi.DdotFile;
@@ -27,15 +28,15 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         myFixture.addFileToProject("notes/b.md", "intro\n```ddot\nCarol ..likes.. Tea\n```\n");
         myFixture.addFileToProject("docs/c.adoc", "[source,ddot]\n----\nDave ..owns.. Car\n----\n");
 
-        Set<String> predicates = DdotEntityIndex.projectNames(getProject(), DdotSlot.RELATION);
+        Set<String> predicates = DdotCandidates.projectNames(getProject(), DdotSlot.RELATION);
         assertTrue("predicates from every host type: " + predicates,
                 predicates.containsAll(Set.of("knows", "likes", "owns")));
 
-        Set<String> subjects = DdotEntityIndex.projectNames(getProject(), DdotSlot.SUBJECT);
+        Set<String> subjects = DdotCandidates.projectNames(getProject(), DdotSlot.SUBJECT);
         assertTrue("subjects from every host type: " + subjects,
                 subjects.containsAll(Set.of("Alice", "Carol", "Dave")));
 
-        Set<String> objects = DdotEntityIndex.projectNames(getProject(), DdotSlot.OBJECT);
+        Set<String> objects = DdotCandidates.projectNames(getProject(), DdotSlot.OBJECT);
         assertTrue("objects from every host type: " + objects,
                 objects.containsAll(Set.of("Bob", "Tea", "Car")));
     }
@@ -51,7 +52,7 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         recents.recordUse("rec_new");
 
         Map<String, Double> priority = new HashMap<>();
-        for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(current, DdotSlot.RELATION)) {
+        for (DdotCandidates.Ranked r : DdotCandidates.ranked(current, DdotSlot.RELATION)) {
             priority.put(r.name(), r.priority());
         }
 
@@ -73,9 +74,9 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         myFixture.addFileToProject("kb.ddot",
                 "Alice ..leads.. Eagle ,, ..since.. 2025\n");
 
-        Set<String> metaRelations = DdotEntityIndex.projectNames(getProject(), DdotSlot.META_RELATION);
+        Set<String> metaRelations = DdotCandidates.projectNames(getProject(), DdotSlot.META_RELATION);
         assertTrue("meta-only relation is offered: " + metaRelations, metaRelations.contains("since"));
-        Set<String> metaObjects = DdotEntityIndex.projectNames(getProject(), DdotSlot.META_OBJECT);
+        Set<String> metaObjects = DdotCandidates.projectNames(getProject(), DdotSlot.META_OBJECT);
         assertTrue("meta-only object is offered: " + metaObjects, metaObjects.contains("2025"));
 
         // The pools compose per the specified query catalog, in both directions:
@@ -87,14 +88,14 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         assertTrue("plain objects offered for a meta object: " + metaObjects,
                 metaObjects.contains("Eagle"));
         assertTrue("meta relations offered for a plain relation",
-                DdotEntityIndex.projectNames(getProject(), DdotSlot.RELATION).contains("since"));
+                DdotCandidates.projectNames(getProject(), DdotSlot.RELATION).contains("since"));
         assertTrue("meta objects offered for a plain object",
-                DdotEntityIndex.projectNames(getProject(), DdotSlot.OBJECT).contains("2025"));
+                DdotCandidates.projectNames(getProject(), DdotSlot.OBJECT).contains("2025"));
 
         // Relation-like slots stay inside their own family: offering values where
         // a relation name belongs would be a category error.
         assertFalse("objects are not offered for a relation",
-                DdotEntityIndex.projectNames(getProject(), DdotSlot.RELATION).contains("Eagle"));
+                DdotCandidates.projectNames(getProject(), DdotSlot.RELATION).contains("Eagle"));
         assertFalse("objects are not offered for a meta relation: " + metaRelations,
                 metaRelations.contains("Eagle"));
     }
@@ -106,7 +107,7 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         DdotFile current = (DdotFile) myFixture.configureByText("cur.ddot", "");
 
         Map<String, Double> priority = new HashMap<>();
-        for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(current, DdotSlot.META_RELATION)) {
+        for (DdotCandidates.Ranked r : DdotCandidates.ranked(current, DdotSlot.META_RELATION)) {
             priority.put(r.name(), r.priority());
         }
         assertNotNull("meta relation offered", priority.get("since"));
@@ -129,7 +130,7 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         DdotFile current = (DdotFile) myFixture.configureByText("cur.ddot", "");
 
         Map<String, Double> priority = new HashMap<>();
-        for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(current, DdotSlot.RELATION)) {
+        for (DdotCandidates.Ranked r : DdotCandidates.ranked(current, DdotSlot.RELATION)) {
             priority.put(r.name(), r.priority());
         }
         // `common` is used 3x across two files, `rare` once — same pool, same
@@ -143,7 +144,7 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         // locality still beats the frequency of a project-only name.
         DdotFile withLocal = (DdotFile) myFixture.configureByText("cur2.ddot", "Q ..rare.. 9\n");
         Map<String, Double> local = new HashMap<>();
-        for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(withLocal, DdotSlot.RELATION)) {
+        for (DdotCandidates.Ranked r : DdotCandidates.ranked(withLocal, DdotSlot.RELATION)) {
             local.put(r.name(), r.priority());
         }
         assertTrue("locality outranks frequency: " + local,
@@ -162,7 +163,7 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         DdotRecentRelations.getInstance(getProject()).recordUse("until");
 
         Map<String, Double> priority = new HashMap<>();
-        for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(current, DdotSlot.META_RELATION)) {
+        for (DdotCandidates.Ranked r : DdotCandidates.ranked(current, DdotSlot.META_RELATION)) {
             priority.put(r.name(), r.priority());
         }
         // Same pool, same locality, same count — only recency separates them.
@@ -180,7 +181,7 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         DdotFile current = (DdotFile) myFixture.addFileToProject("cur.ddot", "X ..r.. Bob\n");
 
         Map<String, Double> priority = new HashMap<>();
-        for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(current, DdotSlot.SUBJECT)) {
+        for (DdotCandidates.Ranked r : DdotCandidates.ranked(current, DdotSlot.SUBJECT)) {
             priority.put(r.name(), r.priority());
         }
         // Bob and Carl both come from the OBJECTS pool with count 1; Bob is
@@ -196,7 +197,7 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         myFixture.addFileToProject("kb.ddot", "s1 ..alpha.. o1\ns2 ..Beta.. o2\ns3 ..gamma.. o3\n");
         DdotFile current = (DdotFile) myFixture.configureByText("cur.ddot", "");
         List<String> tied = new java.util.ArrayList<>();
-        for (DdotEntityIndex.Ranked r : DdotEntityIndex.ranked(current, DdotSlot.RELATION)) {
+        for (DdotCandidates.Ranked r : DdotCandidates.ranked(current, DdotSlot.RELATION)) {
             if (Set.of("alpha", "Beta", "gamma").contains(r.name())) tied.add(r.name());
         }
         assertEquals(List.of("alpha", "Beta", "gamma"), tied);
@@ -213,7 +214,7 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         DdotRecentRelations recents = DdotRecentRelations.getInstance(getProject());
         for (String rel : List.of("c1", "c2", "c3", "c4", "c5")) recents.recordUse(rel);
         // Only the 3 most recent are surfaced.
-        assertEquals(List.of("c5", "c4", "c3"), recents.recent(DdotEntityIndex.RECENT_SLOTS));
+        assertEquals(List.of("c5", "c4", "c3"), recents.recent(DdotCandidates.RECENT_SLOTS));
     }
 
     public void testKgraphObjectsForRelationAcrossFiles() {
@@ -288,5 +289,20 @@ public final class DdotEntityIndexTest extends BasePlatformTestCase {
         // Alice is a Student ⟹ (inferred) a Person, so a Person-peer's "phone" applies to Alice.
         Set<String> rels = DdotKgraphService.getInstance(getProject()).relationsForSubjectType("Alice");
         assertTrue("inferred supertype relation: " + rels, rels.contains("phone"));
+    }
+
+    public void testNamesNeedingIdEscapesRoundTrip() {
+        myFixture.addFileToProject("a.ddot", "Big Corp ..owns.. 50% share\n#tag ..works at.. Big Corp\n");
+        myFixture.addFileToProject("b.ddot", "Big Corp ..owns.. 50% share\n");
+        DdotKgraphService kb = DdotKgraphService.getInstance(getProject());
+        // kbase derives item ids by percent-encoding; the service speaks text both ways.
+        assertEquals(Set.of("50% share"), kb.objectsForRelation("owns"));
+        assertEquals(Set.of("Big Corp"), kb.objectsForRelation("works at"));
+        DdotKgraphService.EntityFacts facts = kb.facts("Big Corp");
+        assertEquals("owns", facts.outgoing().getFirst().relation());
+        assertEquals(List.of("#tag"), facts.incoming().getFirst().entities());
+        // The same triple in two files is one link with both locations.
+        assertEquals(2, kb.locations("Big Corp", "owns", "50% share").size());
+        assertEquals(2, kb.tripleCount("Big Corp"));
     }
 }

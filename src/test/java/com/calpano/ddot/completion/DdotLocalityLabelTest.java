@@ -12,7 +12,7 @@ import java.util.Map;
  * The lookup's type text distinguishes candidates the current file already uses
  * ("Object in file") from ones only the rest of the project knows ("Object in
  * project"). The distinction has to track the same locality that
- * {@link com.calpano.ddot.index.DdotEntityIndex#namesInFile} feeds into ranking,
+ * {@link com.calpano.ddot.completion.DdotCandidates#namesInFile} feeds into ranking,
  * so the label explains why an entry sits where it does.
  */
 public final class DdotLocalityLabelTest extends BasePlatformTestCase {

@@ -66,7 +66,7 @@
              A release on Maven Central. 0.2.2 is the first reader-ddot that parses via
              ddot-core's DdotTokenizer/DdotEventExporter instead of its own hand-rolled
              grammar, so CJ -> ddot conversion here shares this plugin's parser. -->
-        <graphinout.version>0.2.2</graphinout.version>
+        <graphinout.version>0.2.3</graphinout.version>
         <idea.lib.dir>${project.build.directory}/idea-lib</idea.lib.dir>
         <!--
             Structure-preserving unpack of the same ideaIC zip (build.txt + lib/**),
@@ -150,7 +150,7 @@
         Security pins (2026-10-01, checked against https://osv.dev and the Mend reports in IntelliJ; raised
         to the newest releases on 2026-11-01 and again on 2026-11-16): every version below fixes the advisories reported for
         the version the build resolved before. Only Jackson 3 databind ships in the plugin zip
-        (ddotit-kbase uses it); everything else arrives with IntelliJ's test-framework and is
+        (kbase uses it); everything else arrives with IntelliJ's test-framework and is
         test scope. When bumping <intellij.testframework.version>, check whether the platform's
         own versions have overtaken these pins and drop the ones that have. As of 2026-11-16 the
         platform build in use, test-framework 263.7307.200 (IntelliJ 2026.3), still needs them.
@@ -166,7 +166,7 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Jackson 3, SHIPPED (bundled by ddotit-kbase). 3.1.4 → 3.2.4: GHSA-cxp5-3px4-pw24,
+            <!-- Jackson 3, SHIPPED (bundled by kbase). 3.1.4 → 3.2.4: GHSA-cxp5-3px4-pw24,
                  GHSA-wv8q-qhhj-9h54, GHSA-q4xh-88c3-wmh7, GHSA-gx83-3vf8-gh7j, GHSA-wjgm-6hv5-3cvf,
                  GHSA-5gvw-p9qm-jgwh, GHSA-vvgp-rfg2-7rr6.
                  CAUTION: the zip bundles only jackson-databind, which at runtime meets the IDE's own
@@ -368,19 +368,22 @@
         <dependency>
             <groupId>it.ddot</groupId>
             <artifactId>ddotit-core</artifactId>
-            <!-- A release on Maven Central. -->
-            <version>0.3.1</version>
+            <!-- 0.4.0 moved CDS and the project lint (DdotAnalysis) to kbase. Not on Maven Central
+                 yet: `mvn install` in ../ddot.it-java-core first. Must match what kbase builds against. -->
+            <version>0.4.0-SNAPSHOT</version>
         </dependency>
         <!--
-            The knowledge model (Kgraph, Kedge, TripleEvent2Kgraph), split out of ddotit-core in 0.3.0;
-            DdotKgraphService builds its graph with it. It brings graphinout's base-api, foundation-*,
-            Jackson 3 and slf4j, which ddotit-core 0.2.x used to bring.
+            The knowledge model (com.calpano.kbase): Kgraph holds the stated links, a TripleIndex on top
+            answers triple patterns, and its CDS reasoner (com.calpano.kbase.cds) answers what they entail.
+            The project lint (com.calpano.kbase.lint.DdotAnalysis) lives here too.
+            DdotKgraphService builds the project graph with it. It brings graphinout's base-api,
+            foundation-*, Jackson 3 and slf4j. Successor of it.ddot:ddotit-kbase 0.3.0.
         -->
         <dependency>
-            <groupId>it.ddot</groupId>
-            <artifactId>ddotit-kbase</artifactId>
-            <!-- A release on Maven Central. -->
-            <version>0.3.0</version>
+            <groupId>com.calpano</groupId>
+            <artifactId>kbase</artifactId>
+            <!-- Not yet on Maven Central: `mvn install` in ../kbase first. -->
+            <version>0.1.0-SNAPSHOT</version>
         </dependency>
 
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>external-system-rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/external-system-rt.jar</systemPath></dependency>
