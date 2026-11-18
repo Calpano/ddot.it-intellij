@@ -87,6 +87,15 @@ jobs:
           ref: f8db328eeee027e52931589f62b84485d853b435
           path: ddot.it-java-core
 
+      - name: Checkout graphinout (SNAPSHOT, not on Maven Central)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Calpano/graphinout
+          # Pinned, so CI builds from the same sources as a local build. Bump
+          # to the sibling's pushed HEAD (`git rev-parse HEAD`) when it changes.
+          ref: e86797b4666ce06f4c291c6e96202b4c4f333c3e
+          path: graphinout
+
       - name: Checkout kbase (knowledge model, not yet on Maven Central)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -101,6 +110,10 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+
+      - name: Install graphinout SNAPSHOT into the local Maven repo (kbase and the plugin build against it)
+        working-directory: graphinout
+        run: mvn -B -DskipTests -Dmaven.javadoc.skip=true install
 
       - name: Install ddotit-core SNAPSHOT into the local Maven repo (kbase builds against it)
         working-directory: ddot.it-java-core
