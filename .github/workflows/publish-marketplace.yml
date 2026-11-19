@@ -78,24 +78,11 @@ jobs:
           ref: 6d241b0171623e8fd73e37ecfee0bb6ffb317faf
           path: ddot.it-syntax-tools
 
-      - name: Checkout kbase (knowledge model, not yet on Maven Central)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: Calpano/kbase
-          # Pinned, so CI builds from the same sources as a local build. Bump
-          # to the sibling's pushed HEAD (`git rev-parse HEAD`) when it changes.
-          ref: 3b52880dcce5406b3e0ebb3b9af9654771700538
-          path: kbase
-
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
-
-      - name: Install kbase (com.calpano:kbase SNAPSHOT) into the local Maven repo
-        working-directory: kbase
-        run: mvn -B -DskipTests -Dmaven.javadoc.skip=true install
 
       - name: Read intellij.version from pom (for cache key)
         id: pom
