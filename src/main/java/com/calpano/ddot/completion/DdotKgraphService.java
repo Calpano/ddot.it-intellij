@@ -18,10 +18,16 @@ import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectFileIndex;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
+import com.intellij.openapi.vfs.VirtualFileVisitor;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
+import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent;
+import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
+import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent;
+import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent;
 import com.calpano.kbase.cds.Cds;
 import com.calpano.kbase.cds.CdsReasoner;
 import com.calpano.kbase.cds.Triple;
@@ -66,7 +72,7 @@ import java.util.stream.Collectors;
  *
  * <p><b>Incremental.</b> The graph is built once (full), then maintained per file: a {@code VFS_CHANGES}
  * listener and a document listener record changed (or unsaved-edited) ddot/Markdown/AsciiDoc files, and
- * the next query applies {@link Kgraph#removeBySource(String)} + re-ingest of just those files. The index
+ * the files under a deleted, moved or renamed directory, and the next query applies {@link Kgraph#removeBySource(String)} + re-ingest of just those files. The index
  * follows each change inside the graph's write, and the reasoner brings itself up to date when the
  * graph's revision has moved.
  *
@@ -79,6 +85,11 @@ public final class DdotKgraphService implements Disposable {
     private final Project project;
     /** URLs of ddot-hosting files changed since the last query; applied as deltas. */
     private final Set<String> dirty = ConcurrentHashMap.newKeySet();
+    /**
+     * URLs of directories that were deleted, moved or renamed, each ending in {@code /}: every ingested file
+     * under one is dirty. The VFS reports only the directory, not the files in it.
+     */
+    private final Set<String> dirtyDirs = ConcurrentHashMap.newKeySet();
     private @Nullable Kgraph graph;
     /** SPO index and reasoner over {@link #graph}; replaced together with it. */
     private @Nullable TripleIndex index;
@@ -99,10 +110,24 @@ public final class DdotKgraphService implements Disposable {
         this.project = project;
         project.getMessageBus().connect(this).subscribe(VirtualFileManager.VFS_CHANGES, new BulkFileListener() {
             @Override
-            public void after(@NotNull List<? extends VFileEvent> events) {
+            public void before(@NotNull List<? extends VFileEvent> events) {
+                // What goes away: the old location, while its URL is still the file's.
                 for (VFileEvent event : events) {
-                    VirtualFile file = event.getFile();
-                    markDirty(file);
+                    if (event instanceof VFileDeleteEvent || event instanceof VFileMoveEvent
+                            || isRename(event)) {
+                        markGone(event.getFile());
+                    }
+                }
+            }
+
+            @Override
+            public void after(@NotNull List<? extends VFileEvent> events) {
+                // What is there now: changed content, and created, copied, moved or renamed files.
+                for (VFileEvent event : events) {
+                    if (event instanceof VFileDeleteEvent) continue;
+                    if (event instanceof VFilePropertyChangeEvent && !isRename(event)) continue;
+                    if (event instanceof VFileContentChangeEvent) markDirty(event.getFile());
+                    else markTree(event.getFile());
                 }
             }
         });
@@ -113,6 +138,34 @@ public final class DdotKgraphService implements Disposable {
                 markDirty(FileDocumentManager.getInstance().getFile(event.getDocument()));
             }
         }, this);
+    }
+
+    private static boolean isRename(@NotNull VFileEvent event) {
+        return event instanceof VFilePropertyChangeEvent change
+                && VirtualFile.PROP_NAME.equals(change.getPropertyName());
+    }
+
+    /** {@code file}, at its current location, is about to go: drop it, or everything under it. */
+    private void markGone(@Nullable VirtualFile file) {
+        if (file == null) return;
+        if (file.isDirectory()) dirtyDirs.add(file.getUrl() + "/");
+        else markDirty(file);
+    }
+
+    /** {@code file} is new at its location: read it, or every file under it. */
+    private void markTree(@Nullable VirtualFile file) {
+        if (file == null || !file.isValid()) return;
+        if (!file.isDirectory()) {
+            markDirty(file);
+            return;
+        }
+        VfsUtilCore.visitChildrenRecursively(file, new VirtualFileVisitor<Void>() {
+            @Override
+            public boolean visitFile(@NotNull VirtualFile child) {
+                if (!child.isDirectory()) markDirty(child);
+                return true;
+            }
+        });
     }
 
     private void markDirty(@Nullable VirtualFile file) {
@@ -409,6 +462,7 @@ public final class DdotKgraphService implements Disposable {
         index = new TripleIndex(g);
         graph = g;
         dirty.clear(); // the full build already covers every saved file …
+        dirtyDirs.clear();
         for (Document doc : FileDocumentManager.getInstance().getUnsavedDocuments()) {
             markDirty(FileDocumentManager.getInstance().getFile(doc)); // … unsaved ones follow as deltas
         }
@@ -416,6 +470,15 @@ public final class DdotKgraphService implements Disposable {
 
     /** Re-reads the dirty files. The index follows the graph; the reasoner catches up on its next question. */
     private void applyDeltas(@NotNull Kgraph g) {
+        if (!dirtyDirs.isEmpty()) {
+            Set<String> dirs = new HashSet<>(dirtyDirs);
+            dirtyDirs.removeAll(dirs);
+            for (String url : statedByUrl.keySet()) {
+                for (String dir : dirs) {
+                    if (url.startsWith(dir)) dirty.add(url);
+                }
+            }
+        }
         if (dirty.isEmpty()) return;
         Set<String> batch = new HashSet<>(dirty);
         dirty.removeAll(batch);
