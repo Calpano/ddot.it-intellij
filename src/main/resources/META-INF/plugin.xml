@@ -71,6 +71,12 @@
             <li><b>Up-to-date ddot highlighting in the AsciiDoc preview.</b> 0.1.4 bundled an
                 outdated syntax highlighter for <code>[source,ddot]</code> blocks that did not
                 treat Unicode whitespace as whitespace. 0.1.5 bundles the current one.</li>
+            <li><b>Completion reads the project knowledge graph.</b> Subjects, relations, objects and
+                meta are offered from what the project states, ranked by how often it states them;
+                type and subtype inference comes from the CDS reasoner.</li>
+            <li><b>Deleting, moving or renaming a folder or file updates the knowledge graph.</b>
+                Before, the links of the files it held stayed in completion and the entity popup
+                until the IDE restarted.</li>
             <li>Updated bundled libraries.</li>
         </ul>
         <h3>0.1.4 — Project-Wide Knowledge Graph</h3>
