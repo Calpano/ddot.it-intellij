@@ -32,7 +32,7 @@ public final class DdotFindUsagesHandlerFactory extends FindUsagesHandlerFactory
             @Override
             public boolean processElementUsages(@NotNull PsiElement element, @NotNull Processor<? super UsageInfo> processor,
                                                 @NotNull FindUsagesOptions options) {
-                return ReadAction.compute(() -> {
+                return ReadAction.computeBlocking(() -> {
                     String name = element instanceof DdotEntity e ? e.getName() : null;
                     if (name == null || name.isEmpty()) return true;
                     PsiManager psiManager = PsiManager.getInstance(element.getProject());

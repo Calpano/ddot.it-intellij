@@ -59,7 +59,7 @@ final class DdotTripleNavigator {
         String[] slots = url.substring(PROTOCOL.length()).split("/", -1);
         if (slots.length != 3) return false;
         DdotKgraphService graph = DdotKgraphService.getInstance(project);
-        List<DdotKgraphService.Location> locations = ReadAction.compute(
+        List<DdotKgraphService.Location> locations = ReadAction.computeBlocking(
                 () -> graph.locations(decode(slots[0]), decode(slots[1]), decode(slots[2])));
         navigate(project, locations);
         return true;
@@ -75,7 +75,7 @@ final class DdotTripleNavigator {
             return;
         }
         Map<DdotKgraphService.Location, String> labels = new LinkedHashMap<>();
-        ReadAction.run(() -> locations.forEach(loc -> labels.put(loc, label(project, loc))));
+        ReadAction.runBlocking(() -> locations.forEach(loc -> labels.put(loc, label(project, loc))));
         JBPopupFactory.getInstance()
                 .createPopupChooserBuilder(locations)
                 .setTitle("Stated In")

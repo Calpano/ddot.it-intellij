@@ -10,7 +10,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.command.WriteCommandAction;
-import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -58,7 +58,7 @@ public final class ExportJsonAction extends AnAction {
                     out = parent.createChildData(this, outName);
                 }
                 VfsUtil.saveText(out, jsonl);
-                FileEditorManager.getInstance(project).openFile(out, true);
+                new OpenFileDescriptor(project, out).navigate(true);
             } catch (IOException ex) {
                 notifyError(project, "Failed to write " + outName + ": " + ex.getMessage());
             }

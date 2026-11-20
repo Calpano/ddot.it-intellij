@@ -52,7 +52,7 @@ public final class DdotRenameHandler implements RenameHandler {
     /** Open the rename dialog for {@code name}, after looking up its case variants. */
     public static void start(@NotNull Project project, @NotNull String name, @Nullable PsiElement origin) {
         List<DdotProjectOccurrences.FileOccurrence> found = ProgressManager.getInstance().runProcessWithProgressSynchronously(
-                () -> ReadAction.compute(() -> DdotProjectOccurrences.inProject(project, name)),
+                () -> ReadAction.computeBlocking(() -> DdotProjectOccurrences.inProject(project, name)),
                 "Searching for '" + name + "'", true, project);
         if (found == null) return; // cancelled
         Map<String, Integer> variants = new TreeMap<>();

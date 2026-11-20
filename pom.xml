@@ -169,11 +169,9 @@
             <!-- Jackson 3, SHIPPED (bundled by kbase). 3.1.4 → 3.2.4: GHSA-cxp5-3px4-pw24,
                  GHSA-wv8q-qhhj-9h54, GHSA-q4xh-88c3-wmh7, GHSA-gx83-3vf8-gh7j, GHSA-wjgm-6hv5-3cvf,
                  GHSA-5gvw-p9qm-jgwh, GHSA-vvgp-rfg2-7rr6.
-                 CAUTION: the zip bundles only jackson-databind, which at runtime meets the IDE's own
-                 jackson-core (lib/intellij.libraries.jackson3.jar): 3.1.4 in IntelliJ 2026.2 through 2026.2.4,
-                 3.2.2 in 2026.3. Tests do not cover that pairing, since here the BOM lifts jackson-core
-                 to 3.2.4 as well. Deliberately NOT 3.3.0 (newest as of 2026-11-16): stay on the minor
-                 line of the newest IDE's jackson-core so the runtime skew stays a patch apart there. -->
+                 The zip bundles jackson-core and jackson-databind, relocated to com.calpano.ddot.shaded.tools.jackson
+                 (see the shade plugin), so they never meet the IDE's own Jackson 3 (lib/intellij.libraries.jackson3*.jar)
+                 and this version can move independently of the IDE's. -->
             <dependency>
                 <groupId>tools.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
@@ -396,6 +394,14 @@
             <!-- A release on Maven Central. Built on graphinout 0.2.4 and ddotit-core 0.4.0; keep
                  those two the same versions here. -->
             <version>0.4.3</version>
+        </dependency>
+        <!-- networknt's json-schema-validator (via graphinout) declares YAML support as optional, so
+             nothing pulls this in. Its DefaultNodeReader still links to YAMLMapper, and only an unrelocated
+             build resolved that to the IDE's copy, mixing two Jacksons. Bundle and relocate our own instead
+             (version from the Jackson 3 BOM). -->
+        <dependency>
+            <groupId>tools.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
 
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>external-system-rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/external-system-rt.jar</systemPath></dependency>
@@ -1234,6 +1240,20 @@ lists.
                                 <relocation>
                                     <pattern>com.fasterxml.jackson</pattern>
                                     <shadedPattern>com.calpano.ddot.shaded.com.fasterxml.jackson</shadedPattern>
+                                </relocation>
+                                <!--
+                                    Jackson 3 too: IntelliJ ships its own tools.jackson (lib/intellij.libraries.jackson3*.jar).
+                                    The plugin classloader already prefers our jar, but relocating removes any doubt about which copy
+                                    a class or SPI lookup resolves to, and frees us to track Jackson releases independent of the IDE's.
+                                -->
+                                <relocation>
+                                    <pattern>tools.jackson</pattern>
+                                    <shadedPattern>com.calpano.ddot.shaded.tools.jackson</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <!-- jackson-dataformat-yaml's parser; the IDE ships its own copy. -->
+                                    <pattern>org.snakeyaml.engine</pattern>
+                                    <shadedPattern>com.calpano.ddot.shaded.org.snakeyaml.engine</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>org.apache.commons.io</pattern>
