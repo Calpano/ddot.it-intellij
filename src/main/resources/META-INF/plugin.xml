@@ -77,6 +77,8 @@
             <li><b>Deleting, moving or renaming a folder or file updates the knowledge graph.</b>
                 Before, the links of the files it held stayed in completion and the entity popup
                 until the IDE restarted.</li>
+            <li><b>Smaller download.</b> The plugin no longer bundles libraries it does not use
+                (7 MB instead of 10 MB) and uses no internal IntelliJ APIs.</li>
             <li>Updated bundled libraries.</li>
         </ul>
         <h3>0.1.4 — Project-Wide Knowledge Graph</h3>
