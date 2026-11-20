@@ -44,6 +44,8 @@ public final class DdotRenameProcessor extends BaseRefactoringProcessor {
     private final @Nullable PsiElement origin;
     /** Every case variant found, for the result notification. */
     private final Map<String, Integer> variantsFound = new TreeMap<>();
+    /** Whether the usages are shown for review first; kept here, as the platform's getter is internal API. */
+    private boolean previewUsages;
 
     public DdotRenameProcessor(@NotNull Project project, @Nullable PsiElement origin, @NotNull String oldName,
                                @NotNull String newName, boolean includeCaseVariants) {
@@ -100,10 +102,16 @@ public final class DdotRenameProcessor extends BaseRefactoringProcessor {
         return usages.toArray(UsageInfo.EMPTY_ARRAY);
     }
 
+    @Override
+    public void setPreviewUsages(boolean isPreviewUsages) {
+        super.setPreviewUsages(isPreviewUsages);
+        previewUsages = isPreviewUsages;
+    }
+
     /** Without a preview, the dialog's checkbox alone decides about case variants. */
     @Override
     protected boolean preprocessUsages(@NotNull Ref<UsageInfo[]> refUsages) {
-        if (!isPreviewUsages() && !includeCaseVariants) {
+        if (!previewUsages && !includeCaseVariants) {
             refUsages.set(java.util.Arrays.stream(refUsages.get())
                     .filter(u -> !u.isNonCodeUsage).toArray(UsageInfo[]::new));
         }

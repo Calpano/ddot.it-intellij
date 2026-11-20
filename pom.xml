@@ -246,9 +246,8 @@
                 <artifactId>lz4-java</artifactId>
                 <version>1.14.1</version>
             </dependency>
-            <!-- SHIPPED: graphinout's Guava is shaded into the plugin jar, but the test
-                 framework's 33.5.0 wins Maven's version mediation, being declared first.
-                 33.5.0 → 33.8.0-jre: GHSA-xxph-c9ww-hj94 (CVE-2026-102554). -->
+            <!-- Test only (via the test framework); not shipped, see the Guava exclusion on
+                 reader-ddot. 33.5.0 → 33.8.0-jre: GHSA-xxph-c9ww-hj94 (CVE-2026-102554). -->
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
@@ -322,7 +321,7 @@
 
         <!--
             Connected JSON -> ddot.it conversion. Real (non-system) Maven dependency:
-            its classes + transitives (jackson, guava, joni, json-schema-validator, …)
+            its classes + transitives (jackson, joni, json-schema-validator, …)
             are bundled into the plugin jar by the maven-shade-plugin below, with the
             IDE-clashing libraries relocated. slf4j-api is excluded from the shaded jar
             (the IntelliJ platform supplies the binding).
@@ -352,6 +351,18 @@
                 <exclusion>
                     <groupId>org.gwtproject.regexp</groupId>
                     <artifactId>gwt-regexp</artifactId>
+                </exclusion>
+                <!--
+                    graphinout's `base` declares Guava, but no class in the plugin jar uses it
+                    (graphinout, kbase and the other bundled libraries included). Shipping it cost
+                    ~2,000 classes and three Plugin Verifier false positives: the verifier does not
+                    resolve the signature-polymorphic VarHandle.set/setRelease calls in Guava 33.5+.
+                    If a graphinout upgrade starts using Guava, the verifier reports the missing
+                    classes.
+                -->
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -385,7 +396,7 @@
             <artifactId>kbase</artifactId>
             <!-- A release on Maven Central. Built on graphinout 0.2.4 and ddotit-core 0.4.0; keep
                  those two the same versions here. -->
-            <version>0.4.2</version>
+            <version>0.4.3-SNAPSHOT</version>
         </dependency>
 
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>external-system-rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/external-system-rt.jar</systemPath></dependency>
@@ -864,6 +875,12 @@
             <resource>
                 <directory>${project.build.directory}/generated-resources/rouge</directory>
             </resource>
+            <!-- The plugin version, for AsciidocExtensionInstaller's stamp: the platform's own lookup
+                 (PluginManagerCore.getPlugin) is internal API. Same as plugin.xml's <version>. -->
+            <resource>
+                <directory>src/main/resources-filtered</directory>
+                <filtering>true</filtering>
+            </resource>
         </resources>
 
         <plugins>
@@ -1169,7 +1186,7 @@ or point an existing checkout at the build:
 
             <!--
                 Bundle graphinout + its transitives into the plugin jar. The libraries
-                the IntelliJ platform also ships (guava, jackson, commons-io) are
+                the IntelliJ platform also ships (jackson, commons-io) are
                 RELOCATED so the plugin uses graphinout's own versions instead of the
                 IDE's older ones; slf4j-api is dropped entirely so logging routes
                 through the platform's binding (graphinout's logback was demoted to
@@ -1231,14 +1248,6 @@ or point an existing checkout at the build:
                                     annotations), and relocating it would rename the very
                                     classes the plugin's own source imports.
                                 -->
-                                <relocation>
-                                    <pattern>com.google.common</pattern>
-                                    <shadedPattern>com.calpano.ddot.shaded.com.google.common</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.google.thirdparty</pattern>
-                                    <shadedPattern>com.calpano.ddot.shaded.com.google.thirdparty</shadedPattern>
-                                </relocation>
                                 <relocation>
                                     <pattern>com.fasterxml.jackson</pattern>
                                     <shadedPattern>com.calpano.ddot.shaded.com.fasterxml.jackson</shadedPattern>

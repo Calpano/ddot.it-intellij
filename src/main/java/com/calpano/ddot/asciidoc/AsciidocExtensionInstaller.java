@@ -67,7 +67,6 @@ public final class AsciidocExtensionInstaller {
 
     private static final String RESOURCE_DIR = "/com/calpano/ddot/asciidoc/";
     private static final PluginId ASCIIDOC_PLUGIN_ID = PluginId.getId("org.asciidoctor.intellij.asciidoc");
-    private static final PluginId OUR_PLUGIN_ID = PluginId.getId("com.calpano.ddot");
 
     private AsciidocExtensionInstaller() {
     }
@@ -119,9 +118,13 @@ public final class AsciidocExtensionInstaller {
         return PluginManagerCore.isPluginInstalled(ASCIIDOC_PLUGIN_ID);
     }
 
+    /** This plugin's version, which Maven writes into {@code plugin-version.txt} next to this class. */
     public static @NotNull String pluginVersion() {
-        var descriptor = PluginManagerCore.getPlugin(OUR_PLUGIN_ID);
-        return descriptor != null ? descriptor.getVersion() : "unknown";
+        try (InputStream in = AsciidocExtensionInstaller.class.getResourceAsStream("plugin-version.txt")) {
+            return in == null ? "unknown" : new String(in.readAllBytes(), StandardCharsets.UTF_8).strip();
+        } catch (IOException e) {
+            return "unknown";
+        }
     }
 
     /**
