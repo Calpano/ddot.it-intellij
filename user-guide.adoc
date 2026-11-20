@@ -505,7 +505,7 @@ The plugin drops `ddot-render.rb`, `ddot.rb` and `ddot-extension.rb` into `<proj
 Click *Enable* for all three.
 . Open or refresh the AsciiDoc preview.
 
-`ddot.rb` is the link:{url-syntax-tools}[ddot.it-syntax-tools] Rouge lexer, bundled at build time.
+`ddot.rb` is the Rouge lexer from the https://rubygems.org/gems/rouge-ddot[rouge-ddot] gem, maintained in link:{url-syntax-tools}[ddot.it-syntax-tools] and bundled at build time.
 It highlights `[source,ddot]` blocks in documents that set `:source-highlighter: rouge`.
 
 Nothing is written into projects that have no ddot blocks, and a plugin upgrade refreshes the installed copies on the next open.

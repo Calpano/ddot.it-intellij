@@ -104,18 +104,17 @@
         <ddot.test-data.dir>${project.basedir}/../ddot.it/test-data</ddot.test-data.dir>
 
         <!--
-            Sibling checkout of Calpano/ddot.it-syntax-tools, home of the CANONICAL
-            Rouge lexer (`rouge/lib/rouge/lexers/ddot.rb`) that the AsciiDoc preview
-            extension loads for `[source,ddot]` blocks. The lexer is conformance-tested
-            there against ../ddot.it/test-data/cases/*/expected.tokens.json, so it is
-            copied in at build time (see maven-resources-plugin below) rather than
-            hand-mirrored into src/main/resources — a checked-in copy silently rotted
-            behind the canonical one for several spec revisions (;;-separators, verbatim
-            blocks, Unicode WS). Override on the command line:
-              mvn package -Dddot.syntax-tools.dir=/abs/path/to/ddot.it-syntax-tools
+            The Rouge lexer (`ddot.rb`) that the AsciiDoc preview extension loads for
+            `[source,ddot]` blocks, taken from the released rouge-ddot gem
+            (https://rubygems.org/gems/rouge-ddot), which Calpano/ddot.it-syntax-tools
+            publishes after its conformance run against the ddot.it corpus. A checked-in
+            copy once rotted behind the canonical lexer for several spec revisions, so
+            the build fetches it (see `fetch-rouge-lexer` below). To update: set the new
+            version and its SHA-256, which https://rubygems.org/api/v2/rubygems/rouge-ddot/versions/VERSION.json
+            lists as `sha`.
         -->
-        <ddot.syntax-tools.dir>${project.basedir}/../ddot.it-syntax-tools</ddot.syntax-tools.dir>
-        <ddot.rouge-lexer.file>${ddot.syntax-tools.dir}/rouge/lib/rouge/lexers/ddot.rb</ddot.rouge-lexer.file>
+        <rouge-ddot.version>0.1.4</rouge-ddot.version>
+        <rouge-ddot.sha256>e0964c52a8d3829b805dfec18899c63ce12322eac0dfabd0337d4c32c7c0618e</rouge-ddot.sha256>
     </properties>
 
     <repositories>
@@ -908,21 +907,19 @@
             </plugin>
 
             <!--
-                Fail loudly when the sibling ddot.it-syntax-tools checkout is absent.
-                Without this the copy-resources execution below would silently copy
-                nothing and we would ship a plugin whose AsciiDoc extension raises
-                LoadError on `require_relative 'ddot'` — degrading `[source,ddot]`
-                blocks to unhighlighted text with no build-time signal at all.
+                Put the rouge-ddot gem's lexer into the resource tree that
+                AsciidocExtensionInstaller reads (/com/calpano/ddot/asciidoc/ddot.rb) and
+                installs into <contentRoot>/.asciidoctor/lib/. Byte-identical to the
+                released gem, which is the conformance-tested lexer.
+
+                The .gem is cached in the local Maven repository, so `mvn clean` keeps it,
+                offline builds work after the first one, and CI's Maven cache covers it. It
+                is checked against rouge-ddot.sha256 before use; a mismatch deletes it and
+                fails the build. A .gem is a plain tar holding data.tar.gz, which holds
+                lib/rouge/lexers/ddot.rb.
 
                 Bound to generate-resources, not validate, so the `mvn -N initialize`
-                bootstrap documented at the top of this file still runs in a checkout
-                that has only this repo.
-
-                antrun rather than maven-enforcer's `requireFilesExist`: that rule
-                reports the file as missing whenever the configured path contains a
-                `..` segment — which the sibling-checkout layout unavoidably produces —
-                even though java.io.File.exists() on the very same string is true.
-                Ant's <available> resolves it correctly.
+                bootstrap documented at the top of this file needs no network.
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -930,65 +927,51 @@
                 <version>3.2.0</version>
                 <executions>
                     <execution>
-                        <id>require-rouge-lexer</id>
+                        <id>fetch-rouge-lexer</id>
                         <phase>generate-resources</phase>
                         <goals><goal>run</goal></goals>
                         <configuration>
-                            <target>
-                                <!-- Two steps: <fail> drops its nested text when a
-                                     nested <condition> is also present, printing only
-                                     "condition satisfied". Setting the flag first keeps
-                                     the actionable message. -->
-                                <condition property="ddot.rouge-lexer.missing">
-                                    <not>
-                                        <available file="${ddot.rouge-lexer.file}"/>
-                                    </not>
+                            <target xmlns:if="ant:if">
+                                <property name="rouge-ddot.dir" value="${settings.localRepository}/rubygems/rouge-ddot/${rouge-ddot.version}"/>
+                                <property name="rouge-ddot.gem" value="${rouge-ddot.dir}/rouge-ddot-${rouge-ddot.version}.gem"/>
+                                <property name="rouge-ddot.unpacked" value="${project.build.directory}/rouge-ddot-${rouge-ddot.version}"/>
+                                <mkdir dir="${rouge-ddot.dir}"/>
+                                <get src="https://rubygems.org/downloads/rouge-ddot-${rouge-ddot.version}.gem"
+                                     dest="${rouge-ddot.gem}" skipexisting="true" quiet="true"/>
+                                <checksum file="${rouge-ddot.gem}" algorithm="SHA-256"
+                                          property="${rouge-ddot.sha256}" verifyProperty="rouge-ddot.sha256.ok"/>
+                                <!-- Two steps: <fail> drops its nested text when a nested
+                                     <condition> is also present. -->
+                                <condition property="rouge-ddot.sha256.bad">
+                                    <isfalse value="${rouge-ddot.sha256.ok}"/>
                                 </condition>
-                                <fail if="ddot.rouge-lexer.missing">
-The canonical ddot.it Rouge lexer was not found at
-  ${ddot.rouge-lexer.file}
-It is copied into the plugin resources at build time, so the build cannot
-continue without it. Clone the sibling repository next to this one:
-  git clone git@github.com:Calpano/ddot.it-syntax-tools.git
-or point an existing checkout at the build:
-  mvn package -Dddot.syntax-tools.dir=/abs/path/to/ddot.it-syntax-tools
+                                <delete file="${rouge-ddot.gem}" quiet="true" if:set="rouge-ddot.sha256.bad"/>
+                                <fail if="rouge-ddot.sha256.bad">
+The rouge-ddot ${rouge-ddot.version} gem does not have the SHA-256 in pom.xml
+(rouge-ddot.sha256). It was deleted from
+  ${rouge-ddot.dir}
+so the next build downloads it again. If the version was changed, set
+rouge-ddot.sha256 to the `sha` that
+  https://rubygems.org/api/v2/rubygems/rouge-ddot/versions/${rouge-ddot.version}.json
+lists.
                                 </fail>
+                                <untar src="${rouge-ddot.gem}" dest="${rouge-ddot.unpacked}"/>
+                                <untar src="${rouge-ddot.unpacked}/data.tar.gz" dest="${rouge-ddot.unpacked}/data"
+                                       compression="gzip"/>
+                                <copy file="${rouge-ddot.unpacked}/data/lib/rouge/lexers/ddot.rb"
+                                      todir="${project.build.directory}/generated-resources/rouge/com/calpano/ddot/asciidoc"
+                                      overwrite="true"/>
                             </target>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
 
-            <!--
-                Pull the canonical Rouge lexer into the resource tree that
-                InstallAsciidocExtensionAction reads (/com/calpano/ddot/asciidoc/ddot.rb)
-                and installs into <contentRoot>/.asciidoctor/lib/. The file is used
-                verbatim — no filtering — so what ships is byte-identical to the
-                conformance-tested source.
-            -->
+            <!-- Pinned: it also filters src/main/resources-filtered. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.5.0</version>
-                <executions>
-                    <execution>
-                        <id>copy-rouge-lexer</id>
-                        <phase>generate-resources</phase>
-                        <goals><goal>copy-resources</goal></goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/generated-resources/rouge/com/calpano/ddot/asciidoc</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${ddot.syntax-tools.dir}/rouge/lib/rouge/lexers</directory>
-                                    <includes>
-                                        <include>ddot.rb</include>
-                                    </includes>
-                                    <filtering>false</filtering>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
 
             <plugin>

@@ -3,10 +3,9 @@ name: Test
 # Runs the cross-implementation golden tests in PreviewHtmlGoldenTest.
 # The tests compare the Java preview renderer + parser output against
 # fixtures in `../ddot.it/test-data/cases/`, so we sibling-checkout
-# Calpano/ddot.it alongside this repo. Calpano/ddot.it-syntax-tools is
-# checked out too: the build copies its canonical Rouge lexer into the
-# plugin resources at `generate-resources` and fails the build if the
-# checkout is missing.
+# Calpano/ddot.it alongside this repo. The Rouge lexer comes from the
+# rouge-ddot gem on rubygems.org, which the build fetches into the Maven
+# repository (cached with it) and checks against a pinned SHA-256.
 #
 # IntelliJ's platform jars aren't published as separate Maven
 # artifacts; the pom downloads the IDE zip and unpacks platform jars
@@ -46,15 +45,6 @@ jobs:
           # to the sibling's pushed HEAD (`git rev-parse HEAD`) when it changes.
           ref: 06241ef62d69e6635bd7b573ec78bbb8f707b478
           path: ddot.it
-
-      - name: Checkout ddot.it-syntax-tools (canonical Rouge lexer)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: Calpano/ddot.it-syntax-tools
-          # Pinned, so CI builds from the same sources as a local build. Bump
-          # to the sibling's pushed HEAD (`git rev-parse HEAD`) when it changes.
-          ref: 6d241b0171623e8fd73e37ecfee0bb6ffb317faf
-          path: ddot.it-syntax-tools
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:

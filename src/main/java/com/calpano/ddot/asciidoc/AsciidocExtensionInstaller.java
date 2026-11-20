@@ -54,10 +54,10 @@ public final class AsciidocExtensionInstaller {
      * {@code :source-highlighter: rouge} set).
      *
      * <p>{@code ddot.rb} is <b>not</b> under {@code src/main/resources}: the
-     * build copies it verbatim from the sibling {@code ddot.it-syntax-tools}
-     * checkout (see {@code ddot.rouge-lexer.file} in {@code pom.xml}), where it
-     * is conformance-tested against the shared token corpus. The other two are
-     * owned by this repo.
+     * build takes it verbatim from the released rouge-ddot gem (see
+     * {@code rouge-ddot.version} in {@code pom.xml}), which ddot.it-syntax-tools
+     * publishes after testing it against the shared token corpus. The other two
+     * are owned by this repo.
      */
     public static final List<String> FILES = List.of(
             "ddot-render.rb",
