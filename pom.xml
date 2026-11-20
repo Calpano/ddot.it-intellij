@@ -396,7 +396,7 @@
             <artifactId>kbase</artifactId>
             <!-- A release on Maven Central. Built on graphinout 0.2.4 and ddotit-core 0.4.0; keep
                  those two the same versions here. -->
-            <version>0.4.3-SNAPSHOT</version>
+            <version>0.4.3</version>
         </dependency>
 
         <dependency><groupId>com.jetbrains.intellij.local</groupId><artifactId>external-system-rt</artifactId><version>${intellij.version}</version><scope>system</scope><systemPath>${idea.lib.dir}/external-system-rt.jar</systemPath></dependency>
